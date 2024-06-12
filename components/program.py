@@ -1,7 +1,7 @@
 class Program:
-    def __init__(self, rules=[], facts=[],types={},predicates=set()):
-        self.rules = rules
-        self.facts = facts
+    def __init__(self, types={},predicates=set()):
+        self.rules = []
+        self.facts = []
         self.types = types
         self.predicates = predicates
 

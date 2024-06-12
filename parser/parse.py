@@ -40,22 +40,21 @@ def parse(program_text):
     except Exception as e:
         raise ParsingException(f"Parsing failed: {str(e)}")
 
-    collector = PredicateCollector()
+    predicate_collector = PredicateCollector()
     walker = ParseTreeWalker()
     try:
-        walker.walk(collector, tree)
+        walker.walk(predicate_collector, tree)
     except Exception as e:
         raise ParsingException(f"Error during predicate collection: {str(e)}")
 
-    builder = SODNBuilder(collector.predicates)
+    builder = SODNBuilder(predicate_collector.predicates)
     try:
         walker.walk(builder, tree)
     except Exception as e:
         raise ParsingException(f"Error during program building: {str(e)}")
 
-    program = builder.program
 
-    type_collector = TypeCollector(collector.predicates)
+    type_collector = TypeCollector(predicate_collector.predicates)
     try:
         for _ in range(0, 3):
             walker.walk(type_collector, tree)
@@ -63,7 +62,7 @@ def parse(program_text):
     except Exception as e:
         raise ParsingException(f"Error during type collection and update: {str(e)}")
 
-    types = type_collector.get_types()
-    program.types = types
-
+    program = builder.program
+    program.types = type_collector.types
+    program.predicates = predicate_collector.predicates
     return program

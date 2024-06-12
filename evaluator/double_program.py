@@ -1,64 +1,62 @@
 from typing import *
 from components import *
-def is_constant_predicate(literal: Literal) -> bool:
-    return literal.predicate.islower()
 
-def tau(term: Union[Atom, Literal, PredicateHead, Argument]) -> Union[Atom, Literal, PredicateHead, Argument]:
-    if isinstance(term, Argument):
-        # For every term t: τ(t) = t
-        return term
-    elif isinstance(term, Atom):
-        # For every literal l: τ(l(t1, ..., tn))
-        predicate, args = term.predicate, term.args
-        if is_constant_predicate(term):
-            # l' (τ(t1), ..., τ(tn)) if l is constant predicate
-            primed_predicate = f"ndf_{predicate}"
-            return Atom(primed_predicate, [tau(arg) for arg in args], term.predicate_type)
-        else:
-            # l (τ(t1), ..., τ(tn)) if l is variable predicate
-            return Atom(predicate, [tau(arg) for arg in args], term.predicate_type)
-    elif isinstance(term, Literal):
-        atom = term.atom
-        transformed_atom = tau(atom)
-        return Literal(transformed_atom, term.negated)
-    elif isinstance(term, PredicateHead):
-        predicate, args = term.predicate, term.args
-        if is_constant_predicate(term):
-            primed_predicate = f"ndf_{predicate}"
-            return PredicateHead(primed_predicate, [tau(arg) for arg in args])
-        else:
-            return PredicateHead(predicate, [tau(arg) for arg in args])
-    return term
 
-def transform_rule_dt(rule: Rule) -> Rule:
-    head, body = rule.head, rule.body
-    new_body = []
+def add_prefixed_fact(program: Program, prefix: str, fact: Fact) -> None:
+    predicate = f"{prefix}_{fact.head.predicate}"
+    new_fact = Fact(PredicateHead(predicate, fact.head.args))
+    program.add_fact(new_fact)
+
+def transform_rule(rule: Rule, dt_program: Program, ndf_program: Program) -> None:
+    head = rule.head
+    body = rule.body
+    
+    dt_head = PredicateHead(f"dt_{head.predicate}", head.args)
+    ndf_head = PredicateHead(f"ndf_{head.predicate}", head.args)
+
+    dt_body = []
+    ndf_body = []
+
     for literal in body:
-        if literal.negated:
-            negated_literal = literal.atom
-            new_body.append(Literal(tau(negated_literal), negated=True))
-        else:
-            new_body.append(literal)
-    return Rule(head, new_body)
+        predicate = literal.atom.predicate
+        args = literal.atom.args
+        negated = literal.negated
 
-def transform_rule_ndf(rule: Rule) -> Rule:
-    head, body = rule.head, rule.body
-    new_head = tau(head)
-    new_body = []
-    for literal in body:
-        if literal.negated:
-            new_body.append(literal)
+        if not literal.atom.predicate.islower(): # if we have a predicate variable
+            dt_body.append(literal)
+            ndf_body.append(literal)
+            continue
+            
+
+        if negated:
+            dt_body.append(Literal(Atom(f"ndf_{predicate}", args, literal.atom.predicate_type), negated=True))
+            ndf_body.append(Literal(Atom(f"dt_{predicate}", args, literal.atom.predicate_type), negated=True))
         else:
-            new_body.append(Literal(tau(literal.atom)))
-    return Rule(new_head, new_body)
+            dt_body.append(Literal(Atom(f"dt_{predicate}", args, literal.atom.predicate_type)))
+            ndf_body.append(Literal(Atom(f"ndf_{predicate}", args, literal.atom.predicate_type)))
+
+    dt_rule = Rule(dt_head, dt_body)
+    ndf_rule = Rule(ndf_head, ndf_body)
+
+    dt_program.add_rule(dt_rule)
+    ndf_program.add_rule(ndf_rule)
 
 def transform_program(program: Program) -> Tuple[Program, Program]:
-    dt_program = Program()
-    ndf_program = Program()
-    for rule in program.rules:
-        dt_program.add_rule(transform_rule_dt(rule))
-        ndf_program.add_rule(transform_rule_ndf(rule))
+    print(program.types.items())
+    dt_program = Program(
+        types={f"dt_{k}": t for k, t in program.types.items()},
+        predicates=[f"dt_{p}" for p in program.predicates]
+    )
+    ndf_program = Program(
+        types={f"ndf_{k}": t for k, t in program.types.items()},
+        predicates=[f"ndf_{p}" for p in program.predicates]
+    )
+    print("Edw")
     for fact in program.facts:
-        dt_program.add_fact(fact)
-        ndf_program.add_fact(Fact(tau(fact.head)))
+        add_prefixed_fact(dt_program, "dt", fact)
+        add_prefixed_fact(ndf_program, "ndf", fact)
+
+    for rule in program.rules:
+        transform_rule(rule, dt_program, ndf_program)
+
     return dt_program, ndf_program
