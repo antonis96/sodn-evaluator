@@ -1,3 +1,9 @@
 antlr4-python3-runtime==4.13.1
 antlr4-tools==0.2.1
 install-jdk==1.1.0
+numpy==1.26.4
+pandas==2.2.2
+python-dateutil==2.9.0.post0
+pytz==2024.1
+six==1.16.0
+tzdata==2024.1
