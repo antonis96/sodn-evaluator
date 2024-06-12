@@ -1,9 +1,9 @@
 class Program:
-    def __init__(self):
-        self.rules = []
-        self.facts = []
-        self.types = {}
-        self.predicates = set()
+    def __init__(self, rules=[], facts=[],types={},predicates=set()):
+        self.rules = rules
+        self.facts = facts
+        self.types = types
+        self.predicates = predicates
 
     def add_rule(self, rule):
         self.rules.append(rule)
