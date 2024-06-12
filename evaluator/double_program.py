@@ -42,7 +42,6 @@ def transform_rule(rule: Rule, dt_program: Program, ndf_program: Program) -> Non
     ndf_program.add_rule(ndf_rule)
 
 def transform_program(program: Program) -> Tuple[Program, Program]:
-    print(program.types.items())
     dt_program = Program(
         types={f"dt_{k}": t for k, t in program.types.items()},
         predicates=[f"dt_{p}" for p in program.predicates]
@@ -51,7 +50,6 @@ def transform_program(program: Program) -> Tuple[Program, Program]:
         types={f"ndf_{k}": t for k, t in program.types.items()},
         predicates=[f"ndf_{p}" for p in program.predicates]
     )
-    print("Edw")
     for fact in program.facts:
         add_prefixed_fact(dt_program, "dt", fact)
         add_prefixed_fact(ndf_program, "ndf", fact)

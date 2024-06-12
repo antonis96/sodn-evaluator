@@ -28,9 +28,24 @@ def initialize_under_approximation(program: Program, predicate: str) -> pd.DataF
     else:  # if it is a list
         arity = len(predicate_type)
         column_names = [f'{predicate}_{i+1}' for i in range(arity)]
-        c = cartesian_product([H_u if not isinstance(element, list) else [ ((), () ) ] for element in predicate_type])        
+        c = cartesian_product([() if not isinstance(element, list) else [ ((), () ) ] for element in predicate_type])        
         df = pd.DataFrame(c, columns=column_names)
         return df
+
+
+def evaluate_facts(program: Program, under_approximation: dict) -> dict:
+    new_tuples = {key: [] for key in under_approximation.keys()}
+
+    for fact in program.facts:
+        if fact.head.predicate in under_approximation:
+            new_tuples[fact.head.predicate].append(tuple(fact.head.args))
+    
+    for key in new_tuples.keys():
+        if new_tuples[key]:
+            column_names = [f'{key}_{i+1}' for i in range(len(fact.head.args))]
+            under_approximation[key] = pd.DataFrame(new_tuples[key], columns=column_names)
+                
+    return under_approximation
 
 
 def atov(literal: Literal, under_approximation: dict, over_approximation: dict) -> pd.DataFrame:

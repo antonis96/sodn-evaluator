@@ -2,7 +2,7 @@ import sys
 import argparse
 from parser.parse import parse
 from evaluator.double_program import transform_program
-from evaluator.evaluate import initialize_over_approximation,initialize_under_approximation, atov
+from evaluator.evaluate import initialize_over_approximation,initialize_under_approximation, atov, evaluate_facts
 
 def main():
     parser = argparse.ArgumentParser(description='Datalog Program Parser')
@@ -25,9 +25,8 @@ def main():
         for predicate in ndf_program.predicates
     }
 
-    r = dt_program.rules[0]
-    l = r.body[0]
-    atov(l, current_under_approximation, current_over_approximation)
+    current_under_approximation = evaluate_facts(dt_program,current_under_approximation)
+    print(current_under_approximation['dt_p'])
 
 
 if __name__ == "__main__":
