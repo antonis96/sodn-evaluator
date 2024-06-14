@@ -1,4 +1,5 @@
 from components import *
+from typing import Union
 import pandas as pd
 import itertools
 
@@ -15,9 +16,8 @@ def initialize_over_approximation(program: Program, predicate: str) -> pd.DataFr
         return True
     else:  # if it is a list
         arity = len(predicate_type)
-        column_names = [f'{predicate}_{i+1}' for i in range(arity)]
         c = cartesian_product([H_u if not isinstance(element, list) else [ (set(), set(itertools.combinations_with_replacement(H_u, len(element)))) ] for element in predicate_type])        
-        df = pd.DataFrame(c, columns=column_names)
+        df = pd.DataFrame(c)
         return df
 
 
@@ -27,9 +27,8 @@ def initialize_under_approximation(program: Program, predicate: str) -> pd.DataF
         return False
     else:  # if it is a list
         arity = len(predicate_type)
-        column_names = [f'{predicate}_{i+1}' for i in range(arity)]
         c = cartesian_product([() if not isinstance(element, list) else [ ((), () ) ] for element in predicate_type])        
-        df = pd.DataFrame(c, columns=column_names)
+        df = pd.DataFrame(c)
         return df
 
 
@@ -42,36 +41,60 @@ def evaluate_facts(program: Program, under_approximation: dict) -> dict:
     
     for key in new_tuples.keys():
         if new_tuples[key]:
-            column_names = [f'{key}_{i+1}' for i in range(len(fact.head.args))]
-            under_approximation[key] = pd.DataFrame(new_tuples[key], columns=column_names)
-                
+            under_approximation[key] = pd.DataFrame(new_tuples[key])
+
     return under_approximation
 
 
-def atov(literal: Literal, under_approximation: dict, over_approximation: dict) -> pd.DataFrame:
+def atov(literal: Literal, types:list, under_approximation: dict, over_approximation: dict) -> pd.DataFrame:
     
     return (
-        constant_predicate_atov(literal, under_approximation, over_approximation)
+        constant_predicate_atov(literal, types[literal.atom.predicate], under_approximation, over_approximation)
         if literal.atom.predicate.islower()
-        else variable_predicate_atov(literal, under_approximation, over_approximation)
+        else variable_predicate_atov(literal, types[literal.atom.predicate], under_approximation, over_approximation)
     )    
 
 
-def constant_predicate_atov(literal: Literal, under_approximation: dict, over_approximation: dict) -> pd.DataFrame:
+def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_approximation: dict, over_approximation: dict) -> pd.DataFrame:
     atom = literal.atom
     predicate = atom.predicate
-    args = atom.args
+    args = tuple(atom.args)
     vars = [v for v in args if v.value.isupper()]
     is_negated = literal.negated
 
     stored_tuples_dt = pd.DataFrame()
     if predicate.startswith('dt_'):
         stored_tuples_df = under_approximation[predicate]
-        print(stored_tuples_df)
     else:
         stored_tuples_df = over_approximation[predicate]
-        print(stored_tuples_df)
+
+    for row in stored_tuples_df.itertuples(index=False, name=None):
+        sub = match(args, row, atom_type)
+        print(sub)
+        if not is_negated: # if we have a positive literal
+            pass
+        else: # if we have a negative literal
+            pass
+             
+
+def match(a: tuple, b:tuple, atom_type:Union[str,list]) -> dict:
+    if len(a) != len(b):
+        return {}
+
+    sub = {}
+    for ai, bi, ti in zip(a, b,atom_type):
+        if ai.arg_type == 'data_const' and ai.value != bi.value:
+            return {}
+        elif ai.arg_type == 'variable':
+            if ai.value not in sub:
+                sub[ai.value] = bi
+            elif isinstance(ai, str) and sub[ai.value] != bi:
+                return {}
+            elif isinstance(ai, list):
+                sub[ai.value] = 5
+
+    return sub
 
 
-def variable_predicate_atov(literal: Literal, under_approximation: dict, over_approximation: dict) -> pd.DataFrame:
+def variable_predicate_atov(literal: Literal, atom_type:Union[str,list], under_approximation: dict, over_approximation: dict) -> pd.DataFrame:
     pass

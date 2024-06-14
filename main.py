@@ -24,9 +24,11 @@ def main():
         predicate: initialize_over_approximation(ndf_program, predicate)
         for predicate in ndf_program.predicates
     }
-
     current_under_approximation = evaluate_facts(dt_program,current_under_approximation)
-    print(current_under_approximation['dt_p'])
+    rule = dt_program.rules[0]
+    body = rule.body
+    literal = body[0]
+    atov(literal, dt_program.types, current_under_approximation, current_over_approximation)
 
 
 if __name__ == "__main__":
