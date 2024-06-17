@@ -27,7 +27,6 @@ def transform_rule(rule: Rule, dt_program: Program, ndf_program: Program) -> Non
             ndf_body.append(literal)
             continue
             
-
         if negated:
             dt_body.append(Literal(Atom(f"ndf_{predicate}", args, literal.atom.predicate_type), negated=True))
             ndf_body.append(Literal(Atom(f"dt_{predicate}", args, literal.atom.predicate_type), negated=True))

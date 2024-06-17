@@ -1,9 +1,6 @@
-p(a,b).
-p(b,c).
-p(c,a).
-p(b,c).
-p(a,a).
+p(a).
+k(a,a).
+k(a,b).
+k(a,c).
 
-k(a).
-
-q(X) :- p(X,Y), k(a).
+l(X) :- not k(X,Y).

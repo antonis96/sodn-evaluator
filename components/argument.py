@@ -8,3 +8,11 @@ class Argument:
 
     def __str__(self):
         return self.value
+
+    def __eq__(self, other):
+        if isinstance(other, Argument):
+            return self.value == other.value
+        return False
+
+    def __hash__(self):
+        return hash(self.value)
