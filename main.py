@@ -46,6 +46,8 @@ def main():
         current_under_approximation = copy.deepcopy(new_under_approximation)
         current_over_approximation = copy.deepcopy(new_over_approximation)
 
+    print_approximation(current_under_approximation)
 
+    print_approximation(current_over_approximation)
 if __name__ == "__main__":
     main()

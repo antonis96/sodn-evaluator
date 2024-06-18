@@ -255,16 +255,24 @@ def process_rules(program: Program, types: list, current_under_approximation: di
     else:
         return new_over_approximation
 
-
 def compare_dicts_of_dataframes(dict1: dict, dict2: dict) -> bool:
     if dict1.keys() != dict2.keys():
         return False
 
     for key in dict1:
-        df1 = dict1[key].sort_index(axis=1).sort_values(by=list(dict1[key].columns)).reset_index(drop=True)
-        df2 = dict2[key].sort_index(axis=1).sort_values(by=list(dict2[key].columns)).reset_index(drop=True)
-        
-        if not df1.equals(df2):
+        value1 = dict1[key]
+        value2 = dict2[key]
+
+        if isinstance(value1, bool) and isinstance(value2, bool):
+            if value1 != value2:
+                return False
+        elif isinstance(value1, pd.DataFrame) and isinstance(value2, pd.DataFrame):
+            df1 = value1.sort_index(axis=1).sort_values(by=list(value1.columns)).reset_index(drop=True)
+            df2 = value2.sort_index(axis=1).sort_values(by=list(value2.columns)).reset_index(drop=True)
+            
+            if not df1.equals(df2):
+                return False
+        else:
             return False
             
     return True
