@@ -2,6 +2,9 @@ from components import *
 from typing import Union, List
 import pandas as pd
 import itertools
+import copy 
+from functools import reduce
+
 
 H_u = {'0','1','2','3','4'}
 
@@ -129,7 +132,6 @@ def match(a: tuple, b:tuple, atom_type:Union[str,list]) -> dict:
 def variable_predicate_atov(literal: Literal, atom_type:Union[str,list], under_approximation: dict, over_approximation: dict) -> pd.DataFrame:
     pass
 
-from functools import reduce
 
 
 def combine_literal_evaluations(literal_evaluations: List[Union[pd.DataFrame, bool]]) -> Union[pd.DataFrame, bool]:
@@ -220,7 +222,6 @@ def update_approximation(approximation: dict, head: PredicateHead, values: Union
 
     return changes_made
 
-import copy 
 def process_rules(program: Program, types: list, current_under_approximation: dict, current_over_approximation: dict, mode: str) -> dict:
     while True:
         new_tuples_produced = False
