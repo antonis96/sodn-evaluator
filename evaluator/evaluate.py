@@ -3,12 +3,22 @@ from typing import Union, List
 import pandas as pd
 import itertools
 
-H_u = {'a', 'b', 'c'}
+H_u = {'0','1','2','3','4'}
 
 def cartesian_product(elements):
     products = list(itertools.product(*elements))
     return products
 
+
+
+def print_approximation(approximation: dict):
+    for key, value in approximation.items():
+        print(f"Predicate: {key}\n")
+        if isinstance(value, pd.DataFrame):
+            print(value.to_string(index=False, header=False))
+        elif isinstance(value, bool):
+            print(value)
+        print("\n" + "="*40 + "\n")
 
 def initialize_over_approximation(program: Program, predicate: str) -> pd.DataFrame:
     predicate_type = program.types[predicate]
@@ -46,7 +56,7 @@ def evaluate_facts(program: Program, under_approximation: dict) -> dict:
     return under_approximation
 
 
-def atov(literal: Literal, types:list, under_approximation: dict, over_approximation: dict) -> pd.DataFrame:
+def atov(literal: Literal, types:dict, under_approximation: dict, over_approximation: dict) -> pd.DataFrame:
     return (
         constant_predicate_atov(literal, types[literal.atom.predicate], under_approximation, over_approximation)
         if literal.atom.predicate.islower()
@@ -61,7 +71,7 @@ def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
     vars = [str(v) for v in tuple(atom.args) if v.value.isupper()]
     is_negated = literal.negated
 
-    stored_df = pd.DataFrame()
+
     if predicate.startswith('dt_'):
         stored_df = under_approximation[predicate]
     else:
@@ -69,26 +79,31 @@ def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
 
 
     if not vars:
-        stored_df_tuples = [tuple(row) for row in stored_df.itertuples(index=False, name=None)]
-        return args in stored_df_tuples
-
+        if args:
+            stored_df_tuples = [tuple(row) for row in stored_df.itertuples(index=False, name=None)]
+            if is_negated:
+                return True if args not in stored_df_tuples else False
+            return True if args in stored_df_tuples else False
+        else:
+            return not stored_df if is_negated else stored_df
     if not is_negated:
         matches = []
         for row in stored_df.itertuples(index=False, name=None):
-
             sub = match(atom.args, row, atom_type)
             if sub:
                 matches.append(sub)
-        return pd.DataFrame(matches)
+        return pd.DataFrame(matches,columns=vars)
     else:
         matches = []
-        all_combinations = [dict(zip(vars, comb)) for comb in itertools.product(H_u, repeat=len(vars))]
+        all_combinations = [dict(zip(vars, comb)) for comb in itertools.product(H_u, repeat=len(vars))] # fix it alter in order to include constants as well
+        if stored_df.empty:
+            return pd.DataFrame(all_combinations, columns=vars)
         for row in stored_df.itertuples(index=False, name=None):
             sub = match(atom.args, row, atom_type)
             if sub:
                 matches.append(sub)
         diff = [item for item in all_combinations if item not in matches]
-        return pd.DataFrame(diff)
+        return pd.DataFrame(diff, columns=vars)
 
              
 
@@ -155,7 +170,6 @@ def combine_literal_evaluations(literal_evaluations: List[Union[pd.DataFrame, bo
 
 
 def vtoa(head: PredicateHead, body_evaluation: Union[pd.DataFrame, bool]) -> Union[pd.DataFrame, bool]:
-    predicate = head.predicate
     args = tuple([arg.value for arg in head.args ])
     vars = [str(v) for v in args if v.isupper()]
 
@@ -173,4 +187,83 @@ def vtoa(head: PredicateHead, body_evaluation: Union[pd.DataFrame, bool]) -> Uni
         for _, row in body_evaluation.iterrows():
             new_tuple = tuple(row.iloc[i] if str(args[i]) in vars else str(args[i]) for i in range(len(args)))
             result.append(new_tuple)
-        return pd.DataFrame(result).drop_duplicates()
+        return pd.DataFrame(result, columns=vars).drop_duplicates()
+
+
+
+def update_approximation(approximation: dict, head: PredicateHead, values: Union[pd.DataFrame, bool], approximation_to_update: str) -> bool:
+    changes_made = False
+    predicate = head.predicate
+    
+    if isinstance(values, pd.DataFrame):
+        if predicate in approximation:
+            if isinstance(approximation[predicate], pd.DataFrame):
+                original_length = len(approximation[predicate])
+                if approximation_to_update == 'dt':
+                    approximation[predicate] = pd.concat([approximation[predicate], values]).drop_duplicates().reset_index(drop=True)
+                else:  # For ndf_approximation or others, just add values
+                    approximation[predicate] = pd.DataFrame(values).drop_duplicates().reset_index(drop=True)
+                if len(approximation[predicate]) != original_length:
+                    changes_made = True
+            else:
+                approximation[predicate] = values.drop_duplicates().reset_index(drop=True)
+                changes_made = True
+        else:
+            approximation[predicate] = values.drop_duplicates().reset_index(drop=True)
+            changes_made = True
+
+    elif isinstance(values, bool):
+        if predicate in approximation and isinstance(approximation[predicate], bool):
+            if approximation[predicate] != values:
+                approximation[predicate] = values
+                changes_made = True
+
+    return changes_made
+
+import copy 
+def process_rules(program: Program, types: list, current_under_approximation: dict, current_over_approximation: dict, mode: str) -> dict:
+    while True:
+        new_tuples_produced = False
+        new_under_approximation = copy.deepcopy(current_under_approximation)
+        new_over_approximation = copy.deepcopy(current_over_approximation)
+        
+        for rule in program.rules:
+            body = rule.body
+            literal_evaluations = []
+            for l in body:
+                literal_evaluations.append(
+                    atov(l, types, new_under_approximation, new_over_approximation)
+                )
+            body_evaluation = combine_literal_evaluations(literal_evaluations)
+            head_tuples = vtoa(rule.head, body_evaluation)
+            if mode == 'dt':
+                if update_approximation(new_under_approximation, rule.head, head_tuples, mode):
+                    new_tuples_produced = True
+            elif mode == 'ndf':
+                if update_approximation(new_over_approximation, rule.head, head_tuples, mode):
+                    new_tuples_produced = True
+
+        if not new_tuples_produced:
+            break
+        
+        current_under_approximation = new_under_approximation
+        current_over_approximation = new_over_approximation
+        
+    if mode == 'dt':
+        return new_under_approximation
+    else:
+        return new_over_approximation
+
+
+def compare_dicts_of_dataframes(dict1: dict, dict2: dict) -> bool:
+    if dict1.keys() != dict2.keys():
+        return False
+
+    for key in dict1:
+        df1 = dict1[key].sort_index(axis=1).sort_values(by=list(dict1[key].columns)).reset_index(drop=True)
+        df2 = dict2[key].sort_index(axis=1).sort_values(by=list(dict2[key].columns)).reset_index(drop=True)
+        
+        if not df1.equals(df2):
+            return False
+            
+    return True

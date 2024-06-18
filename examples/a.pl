@@ -1,6 +1,6 @@
-p(a).
-k(a,a).
-k(a,b).
-k(a,c).
+succ(0,1).
+succ(1,2).
+succ(2,3).
 
-l(X) :- not k(X,Y).
+even(X) :- succ(X,Y), not even(Y).
+

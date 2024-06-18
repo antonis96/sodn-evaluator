@@ -22,6 +22,7 @@ atom            : predicate LPAREN arg_list RPAREN
 arg_list        : arg (COMMA arg)* ;
 
 arg             : INDIVIDUAL_CONST 
+                | NUMBER
                 | variable 
                 | predicate_const ;
 
@@ -39,6 +40,7 @@ PREDICATE_VAR   : [A-Z] ;
 PREDICATE_CONST : [a-z]+ ;
 INDIVIDUAL_VAR  : [A-Z] ;
 INDIVIDUAL_CONST: [a-z] ;
+NUMBER          : [0-9]+ ;
 
 LEFT_ARROW      : ':-' ;
 PERIOD          : '.' ;
