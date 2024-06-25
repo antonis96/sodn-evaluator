@@ -6,7 +6,7 @@ import copy
 from functools import reduce
 
 
-H_u = {'0','1','2','3','4'}
+H_u = {'a','b','c'}
 
 def cartesian_product(elements):
     products = list(itertools.product(*elements))
@@ -63,7 +63,7 @@ def atov(literal: Literal, types:dict, under_approximation: dict, over_approxima
     return (
         constant_predicate_atov(literal, types[literal.atom.predicate], under_approximation, over_approximation)
         if literal.atom.predicate.islower()
-        else variable_predicate_atov(literal, types[literal.atom.predicate], under_approximation, over_approximation)
+        else variable_predicate_atov(literal, ['i' for i in range(0,len(literal.atom.args))], under_approximation, over_approximation)
     )    
 
 
@@ -130,7 +130,45 @@ def match(a: tuple, b:tuple, atom_type:Union[str,list]) -> dict:
 
 
 def variable_predicate_atov(literal: Literal, atom_type:Union[str,list], under_approximation: dict, over_approximation: dict) -> pd.DataFrame:
-    pass
+    atom = literal.atom
+    predicate = atom.predicate
+    args = tuple([arg.value for arg in atom.args ])
+    arg_vars = [str(v) for v in tuple(atom.args) if v.value.isupper()]
+    arg_constants = [const for const in args if const not in arg_vars]
+    is_negated = literal.negated
+
+
+    var_subs = list(itertools.product(H_u, repeat=len(arg_vars))) # possible substitutions of argument variables
+    possible_subs = list(itertools.product(H_u, repeat=len(args)))
+    
+    if not is_negated:
+        df = pd.DataFrame(var_subs, columns=arg_vars)
+        for const in arg_constants: # add constants into df
+            df[const] = const
+
+        def create_tuple_set(row):
+            return {tuple(row)}
+
+        # Add new column with the required pairs of sets
+        df[predicate] = df.apply(lambda row: (create_tuple_set(row), set(possible_subs)), axis=1)
+        df = df.drop(columns=arg_constants)
+    else:
+        df = pd.DataFrame(var_subs, columns=arg_vars)
+        for const in arg_constants: # add constants into df
+            df[const] = const
+
+        def remove_tuple(row):
+            difference = set(possible_subs)
+            difference.discard(tuple(row))
+            return difference
+            # return {tuple(row)}
+
+        # Add new column with the required pairs of sets
+        df[predicate] = df.apply(lambda row: (set(), set(remove_tuple(row))), axis=1)
+        df = df.drop(columns=arg_constants)
+
+    return df
+
 
 
 
