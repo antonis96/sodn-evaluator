@@ -140,19 +140,46 @@ def variable_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
 
     var_subs = list(itertools.product(H_u, repeat=len(arg_vars))) # possible substitutions of argument variables
     possible_subs = list(itertools.product(H_u, repeat=len(args)))
-    
     if not is_negated:
+        if not arg_vars: # if no variables
+            df = pd.DataFrame(
+                {
+                    predicate: [
+                        (
+                            set([args]), 
+                            set(possible_subs)
+                        )
+                    ]
+                }
+            )
+            return df
+        
         df = pd.DataFrame(var_subs, columns=arg_vars)
         for const in arg_constants: # add constants into df
             df[const] = const
-
         def create_tuple_set(row):
             return {tuple(row)}
 
         # Add new column with the required pairs of sets
         df[predicate] = df.apply(lambda row: (create_tuple_set(row), set(possible_subs)), axis=1)
         df = df.drop(columns=arg_constants)
+        return  df
     else:
+        if not arg_vars: # if no variables
+            difference = set(possible_subs)
+            difference.discard(args)
+            df = pd.DataFrame(
+                {
+                    predicate: [
+                        (
+                            set(()), 
+                            difference
+                        )
+                    ]
+                }
+            )
+            return df
+        
         df = pd.DataFrame(var_subs, columns=arg_vars)
         for const in arg_constants: # add constants into df
             df[const] = const
@@ -167,7 +194,7 @@ def variable_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
         df[predicate] = df.apply(lambda row: (set(), set(remove_tuple(row))), axis=1)
         df = df.drop(columns=arg_constants)
 
-    return df
+        return df
 
 
 
@@ -193,19 +220,55 @@ def combine_literal_evaluations(literal_evaluations: List[Union[pd.DataFrame, bo
         boolean_evaluations = [eval for eval in literal_evaluations if isinstance(eval, bool)]
         return reduce(lambda x, y: x and y, boolean_evaluations, True)
 
-    # Perform a natural join on the list of dataframes using pd.merge
+    # Function to handle the union and intersection for pair values
+    def merge_pairs(pair1, pair2):
+        first_union = pair1[0].union(pair2[0])
+        second_intersection = pair1[1].intersection(pair2[1])
+        return (first_union, second_intersection)
+
+    # Function to perform a natural join or Cartesian product with special handling for pairs
     def join_with_cartesian(left, right):
         common_columns = list(set(left.columns) & set(right.columns))
+        
         if not common_columns:
             # Perform Cartesian product if no common columns
             left['key'] = 1
             right['key'] = 1
             result = pd.merge(left, right, on='key').drop('key', axis=1)
+            return result
         else:
-            result = pd.merge(left, right, on=common_columns)
-        return result
+            # Separate columns into regular and pair columns
+            pair_columns = [col for col in common_columns if isinstance(left[col].iloc[0], tuple)]
+            regular_columns = [col for col in common_columns if col not in pair_columns]
+            
+            if regular_columns:
+                result = pd.merge(left, right, on=regular_columns)
+            else:
+                left['key'] = 1
+                right['key'] = 1
+                result = pd.merge(left, right, on='key').drop('key', axis=1)
 
+            if pair_columns:
+                for col in pair_columns:
+                    if col in common_columns:
+                        # Handle common pair columns
+                        left_pairs = left[[col]].rename(columns={col: col + '_left'})
+                        right_pairs = right[[col]].rename(columns={col: col + '_right'})
+                        temp_df = pd.merge(left_pairs.assign(key=1), right_pairs.assign(key=1), on='key').drop('key', axis=1)
+                        temp_df[col] = temp_df.apply(lambda row: merge_pairs(row[col + '_left'], row[col + '_right']), axis=1)
+                        temp_df = temp_df[[col]]
+                        result = result.merge(temp_df, left_index=True, right_index=True)
+                        result = result.drop(columns=[col + '_left', col + '_right'], errors='ignore')
+                    else:
+                        # Handle non-common pair columns by taking the Cartesian product
+                        left['key'] = 1
+                        right['key'] = 1
+                        result = pd.merge(left, right, on='key').drop('key', axis=1)
+
+            return result.drop(columns=[col for col in result.columns if col.endswith('_x') or col.endswith('_y')], errors='ignore')
+        
     return reduce(lambda left, right: join_with_cartesian(left, right), dfs)
+
 
 
 
