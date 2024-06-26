@@ -70,7 +70,7 @@ def atov(literal: Literal, types:dict, under_approximation: dict, over_approxima
 def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_approximation: dict, over_approximation: dict) -> Union[pd.DataFrame,bool]:
     atom = literal.atom
     predicate = atom.predicate
-    args = tuple([arg.value for arg in atom.args ])
+    args = tuple([str(arg.value) for arg in atom.args ])
     vars = [str(v) for v in tuple(atom.args) if v.value.isupper()]
     is_negated = literal.negated
 
@@ -80,52 +80,37 @@ def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
     else:
         stored_df = over_approximation[predicate]
 
-    if not vars:
-        if args:
-            stored_df_tuples = [tuple(str(item) for item in row) for row in stored_df.itertuples(index=False, name=None)]
-            if is_negated:
-                return True if args not in stored_df_tuples else False
-            return True if args in stored_df_tuples else False
-        else:
-            return not stored_df if is_negated else stored_df
     if not is_negated:
         matches = []
         for row in stored_df.itertuples(index=False, name=None):
-            sub = match(atom.args, row, atom_type)
+            sub, valid_sub = match(atom.args, row, atom_type)
+            if valid_sub and sub == {}: # no variables
+                return valid_sub
             if sub:
                 matches.append(sub)
         return pd.DataFrame(matches,columns=vars)
     else:
-        matches = []
-        all_combinations = [dict(zip(vars, comb)) for comb in itertools.product(H_u, repeat=len(vars))] # fix it later in order to include constants as well
-        if stored_df.empty:
-            return pd.DataFrame(all_combinations, columns=vars)
-        for row in stored_df.itertuples(index=False, name=None):
-            sub = match(atom.args, row, atom_type)
-            if sub:
-                matches.append(sub)
-        diff = [item for item in all_combinations if item not in matches]
-        return pd.DataFrame(diff, columns=vars)
+        pass
 
              
 
-def match(a: tuple, b:tuple, atom_type:Union[str,list]) -> dict:
+def match(a: tuple, b:tuple, atom_type:Union[str,list]):
     if len(a) != len(b):
-        return {}
+        return {}, False
     sub = {}
     for ai, bi, ti in zip(a, b,atom_type):
         if ai.arg_type == 'data_const' and ai.value != bi:
-            return {}
+            return {}, False
         elif ai.arg_type == 'variable':
             if ai not in sub:
                 sub[ai.value] = bi
             elif isinstance(ai, str) and sub[ai.value] != bi:
-                return {}
+                return {}, False
             elif isinstance(ai, list):
                 pass
                 # sub[ai.value] = 5
 
-    return sub
+    return sub, True
 
 
 def variable_predicate_atov(literal: Literal, atom_type:Union[str,list], under_approximation: dict, over_approximation: dict) -> pd.DataFrame:
@@ -270,9 +255,8 @@ def combine_literal_evaluations(literal_evaluations: List[Union[pd.DataFrame, bo
 
 
 def vtoa(head: PredicateHead, body_evaluation: Union[pd.DataFrame, bool]) -> Union[pd.DataFrame, bool]:
-    args = tuple([arg.value for arg in head.args ])
+    args = tuple([str(arg.value) for arg in head.args ])
     vars = [str(v) for v in args if v.isupper()]
-
     if not args:  # If args is empty, return body_evaluation
         return body_evaluation
     
@@ -285,9 +269,9 @@ def vtoa(head: PredicateHead, body_evaluation: Union[pd.DataFrame, bool]) -> Uni
     if isinstance(body_evaluation, pd.DataFrame):        
         result = []
         for _, row in body_evaluation.iterrows():
-            new_tuple = tuple(row.loc[str(i)] if str(i) in vars else str(i) for i in args)
+            new_tuple = tuple(row.loc[i] if i in vars else i for i in args)
             result.append(new_tuple)
-        return pd.DataFrame(result, columns=vars).drop_duplicates()
+        return pd.DataFrame(result).drop_duplicates()
 
 
 
