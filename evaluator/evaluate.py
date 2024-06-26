@@ -80,10 +80,9 @@ def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
     else:
         stored_df = over_approximation[predicate]
 
-
     if not vars:
         if args:
-            stored_df_tuples = [tuple(row) for row in stored_df.itertuples(index=False, name=None)]
+            stored_df_tuples = [tuple(str(item) for item in row) for row in stored_df.itertuples(index=False, name=None)]
             if is_negated:
                 return True if args not in stored_df_tuples else False
             return True if args in stored_df_tuples else False
@@ -98,7 +97,7 @@ def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
         return pd.DataFrame(matches,columns=vars)
     else:
         matches = []
-        all_combinations = [dict(zip(vars, comb)) for comb in itertools.product(H_u, repeat=len(vars))] # fix it alter in order to include constants as well
+        all_combinations = [dict(zip(vars, comb)) for comb in itertools.product(H_u, repeat=len(vars))] # fix it later in order to include constants as well
         if stored_df.empty:
             return pd.DataFrame(all_combinations, columns=vars)
         for row in stored_df.itertuples(index=False, name=None):
@@ -188,8 +187,6 @@ def variable_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
             difference = set(possible_subs)
             difference.discard(tuple(row))
             return difference
-            # return {tuple(row)}
-
         # Add new column with the required pairs of sets
         df[predicate] = df.apply(lambda row: (set(), set(remove_tuple(row))), axis=1)
         df = df.drop(columns=arg_constants)
@@ -285,10 +282,10 @@ def vtoa(head: PredicateHead, body_evaluation: Union[pd.DataFrame, bool]) -> Uni
     if body_evaluation is True:
         # Return a dataframe with a single row containing the head arguments
         return pd.DataFrame([head.args])
-    if isinstance(body_evaluation, pd.DataFrame):
+    if isinstance(body_evaluation, pd.DataFrame):        
         result = []
         for _, row in body_evaluation.iterrows():
-            new_tuple = tuple(row.iloc[i] if str(args[i]) in vars else str(args[i]) for i in range(len(args)))
+            new_tuple = tuple(row.loc[str(i)] if str(i) in vars else str(i) for i in args)
             result.append(new_tuple)
         return pd.DataFrame(result, columns=vars).drop_duplicates()
 
@@ -302,10 +299,7 @@ def update_approximation(approximation: dict, head: PredicateHead, values: Union
         if predicate in approximation:
             if isinstance(approximation[predicate], pd.DataFrame):
                 original_length = len(approximation[predicate])
-                if approximation_to_update == 'dt':
-                    approximation[predicate] = pd.concat([approximation[predicate], values]).drop_duplicates().reset_index(drop=True)
-                else:  # For ndf_approximation or others, just add values
-                    approximation[predicate] = pd.DataFrame(values).drop_duplicates().reset_index(drop=True)
+                approximation[predicate] = pd.DataFrame(values).drop_duplicates().reset_index(drop=True)
                 if len(approximation[predicate]) != original_length:
                     changes_made = True
             else:
