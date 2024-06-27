@@ -13,7 +13,6 @@ def cartesian_product(elements):
     return products
 
 
-
 def print_approximation(approximation: dict):
     for key, value in approximation.items():
         print(f"Predicate: {key}\n")
@@ -83,25 +82,34 @@ def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
     if not is_negated:
         matches = []
         for row in stored_df.itertuples(index=False, name=None):
-            sub, valid_sub = match(atom.args, row, atom_type)
-            if valid_sub and sub == {}: # no variables
+            sub, valid_sub = match(atom.args, row, atom_type, under_approximation, over_approximation)
+            if not valid_sub:
+                continue
+            if sub == {}: # no variables
                 return valid_sub
-            if sub:
+            else:
                 matches.append(sub)
         return pd.DataFrame(matches,columns=vars)
     else:
+        print(atom_type)
         pass
 
              
 
-def match(a: tuple, b:tuple, atom_type:Union[str,list]):
+def match(a: tuple, b:tuple, atom_type:Union[str,list], under_approximation: dict, over_approximation: dict):
     if len(a) != len(b):
         return {}, False
     sub = {}
     for ai, bi, ti in zip(a, b,atom_type):
         if ai.arg_type == 'data_const' and ai.value != bi:
             return {}, False
-        elif ai.arg_type == 'variable':
+        elif ai.arg_type == 'predicate_const':
+            dt_tuples = set(under_approximation['dt_q'].apply(tuple, axis=1))
+            ndf_tuples = set(over_approximation['ndf_q'].apply(tuple, axis=1))
+            if not dt_tuples.issuperset(bi[0]) or not ndf_tuples.issubset(bi[1]):
+                return {}, False
+                    
+        if ai.arg_type == 'variable':
             if ai not in sub:
                 sub[ai.value] = bi
             elif isinstance(ai, str) and sub[ai.value] != bi:
@@ -109,7 +117,6 @@ def match(a: tuple, b:tuple, atom_type:Union[str,list]):
             elif isinstance(ai, list):
                 pass
                 # sub[ai.value] = 5
-
     return sub, True
 
 
@@ -258,7 +265,10 @@ def vtoa(head: PredicateHead, body_evaluation: Union[pd.DataFrame, bool]) -> Uni
     args = tuple([str(arg.value) for arg in head.args ])
     vars = [str(v) for v in args if v.isupper()]
     if not args:  # If args is empty, return body_evaluation
-        return body_evaluation
+        if isinstance(body_evaluation, bool):
+            return body_evaluation
+        else:
+            return True if not body_evaluation.empty else False
     
     if body_evaluation is False:
         return pd.DataFrame()  # Return an empty dataframe for False
@@ -271,7 +281,8 @@ def vtoa(head: PredicateHead, body_evaluation: Union[pd.DataFrame, bool]) -> Uni
         for _, row in body_evaluation.iterrows():
             new_tuple = tuple(row.loc[i] if i in vars else i for i in args)
             result.append(new_tuple)
-        return pd.DataFrame(result).drop_duplicates()
+
+    return pd.DataFrame(result)
 
 
 
@@ -283,14 +294,14 @@ def update_approximation(approximation: dict, head: PredicateHead, values: Union
         if predicate in approximation:
             if isinstance(approximation[predicate], pd.DataFrame):
                 original_length = len(approximation[predicate])
-                approximation[predicate] = pd.DataFrame(values).drop_duplicates().reset_index(drop=True)
+                approximation[predicate] = pd.DataFrame(values)
                 if len(approximation[predicate]) != original_length:
                     changes_made = True
             else:
-                approximation[predicate] = values.drop_duplicates().reset_index(drop=True)
+                approximation[predicate] = values
                 changes_made = True
         else:
-            approximation[predicate] = values.drop_duplicates().reset_index(drop=True)
+            approximation[predicate] = values
             changes_made = True
 
     elif isinstance(values, bool):
@@ -325,7 +336,6 @@ def process_rules(program: Program, types: list, current_under_approximation: di
 
         if not new_tuples_produced:
             break
-        
         current_under_approximation = new_under_approximation
         current_over_approximation = new_over_approximation
         
@@ -346,12 +356,7 @@ def compare_dicts_of_dataframes(dict1: dict, dict2: dict) -> bool:
             if value1 != value2:
                 return False
         elif isinstance(value1, pd.DataFrame) and isinstance(value2, pd.DataFrame):
-            df1 = value1.sort_index(axis=1).sort_values(by=list(value1.columns)).reset_index(drop=True)
-            df2 = value2.sort_index(axis=1).sort_values(by=list(value2.columns)).reset_index(drop=True)
-            
-            if not df1.equals(df2):
+            if not value1.equals(value2):
                 return False
-        else:
-            return False
             
     return True
