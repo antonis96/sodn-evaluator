@@ -141,7 +141,6 @@ class TypeCollector(SODNListener):
                     if self.types[body_predicate] == [None]:
                         return None  # Defer type assignment
                     else:
-                        print(self.types[body_predicate])
                         return self.types[body_predicate][arg_index]
             return None  # Defer type assignment
 

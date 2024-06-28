@@ -13,6 +13,26 @@ def cartesian_product(elements):
     return products
 
 
+# Function to generate all subsets of a given set, allowing repetitions
+def generate_subsets_with_replacement(s, size):
+    subsets = []
+    for r in range(size + 1):
+        subsets.extend(map(lambda x: set((elem,) for elem in x), itertools.combinations_with_replacement(s, r)))
+    subsets.append(set((elem,) for elem in s))  # Ensure the full set is included as required
+    return subsets
+
+# Function to process the input list and associate values
+def associate_values(input_list, H_u):
+    associated_values = []
+    for element in input_list:
+        if element == 'i':
+            associated_values.append(list(H_u))
+        elif isinstance(element, list):
+            subset_size = len(element)
+            subsets = generate_subsets_with_replacement(H_u, subset_size)
+            associated_values.append(subsets)
+    return associated_values
+
 def print_approximation(approximation: dict):
     for key, value in approximation.items():
         print(f"Predicate: {key}\n")
@@ -82,7 +102,7 @@ def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
     if not is_negated:
         matches = []
         for row in stored_df.itertuples(index=False, name=None):
-            sub, valid_sub = match(atom.args, row, atom_type, under_approximation, over_approximation)
+            sub, valid_sub = match(atom.args, row, under_approximation, over_approximation)
             if not valid_sub:
                 continue
             if sub == {}: # no variables
@@ -92,19 +112,27 @@ def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
         return pd.DataFrame(matches,columns=vars)
     else:
         print(atom_type)
-        pass
+        associated_values = associate_values(atom_type, H_u)
+        full_df = pd.DataFrame(cartesian_product(associated_values))
+        print(full_df)
+        matches = [] 
+        for f_row in full_df.itertuples(index=False, name=None):
+            valid_match = False
+            for s_row in stored_df.itertuples(index=False, name=None):
+                pass
+            
+            if valid_match is False:
+                matches.append(f_row)
 
-             
-
-def match(a: tuple, b:tuple, atom_type:Union[str,list], under_approximation: dict, over_approximation: dict):
+def match(a: tuple, b:tuple, under_approximation: dict, over_approximation: dict):
     if len(a) != len(b):
         return {}, False
     sub = {}
-    for ai, bi, ti in zip(a, b,atom_type):
+    for ai, bi in zip(a, b):
         if ai.arg_type == 'data_const' and ai.value != bi:
             return {}, False
         elif ai.arg_type == 'predicate_const':
-            dt_tuples = set(under_approximation['dt_q'].apply(tuple, axis=1))
+            dt_tuples = set(under_approximation['dt_q'].apply(tuple, axis=1)) # SOS fix that so it won't be just q but anything
             ndf_tuples = set(over_approximation['ndf_q'].apply(tuple, axis=1))
             if not dt_tuples.issuperset(bi[0]) or not ndf_tuples.issubset(bi[1]):
                 return {}, False
@@ -114,9 +142,6 @@ def match(a: tuple, b:tuple, atom_type:Union[str,list], under_approximation: dic
                 sub[ai.value] = bi
             elif isinstance(ai, str) and sub[ai.value] != bi:
                 return {}, False
-            elif isinstance(ai, list):
-                pass
-                # sub[ai.value] = 5
     return sub, True
 
 
