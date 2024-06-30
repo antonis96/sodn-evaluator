@@ -35,9 +35,10 @@ def main():
     types = {**dt_program.types, **ndf_program.types}
     current_under_approximation = evaluate_facts(dt_program,current_under_approximation)
     current_over_approximation = evaluate_facts(ndf_program,current_over_approximation)
-
-
+   
+   
     while True:
+
         new_over_approximation = process_rules(ndf_program, types, current_under_approximation, current_over_approximation, 'ndf')
         new_under_approximation = process_rules(dt_program, types, current_under_approximation, current_over_approximation, 'dt')
        
@@ -46,7 +47,8 @@ def main():
 
         current_under_approximation = copy.deepcopy(new_under_approximation)
         current_over_approximation = copy.deepcopy(new_over_approximation)
-    
+
+
     print_approximation(current_under_approximation)
     print_approximation(current_over_approximation)
 
