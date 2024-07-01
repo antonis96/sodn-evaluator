@@ -28,7 +28,7 @@ def associate_values(atom_type, H_u):
         if element == 'i':
             associated_values.append(list(H_u))
         elif isinstance(element, list):
-            pairs = list(itertools.product(H_u, repeat=1)) # replace 2 with arity
+            pairs = list(itertools.product(H_u, repeat=len(element))) 
             subsets = generate_relations(pairs)
             associated_values.append(subsets)
     return associated_values
@@ -171,8 +171,8 @@ def match(a: tuple, b:tuple, under_approximation: dict, over_approximation: dict
         if ai.arg_type == 'data_const' and ai.value != bi:
             return {}, False
         elif ai.arg_type == 'predicate_const':
-            dt_tuples = set(under_approximation['dt_q'].apply(tuple, axis=1)) # SOS fix that so it won't be just q but anything
-            ndf_tuples = set(over_approximation['ndf_q'].apply(tuple, axis=1))
+            dt_tuples = set(under_approximation[f"dt_{ai.value}"].apply(tuple, axis=1)) # SOS fix that so it won't be just q but anything
+            ndf_tuples = set(over_approximation[f"ndf_{ai.value}"].apply(tuple, axis=1))
             if not dt_tuples.issuperset(bi[0]) or not ndf_tuples.issubset(bi[1]):
                 return {}, False
                     
