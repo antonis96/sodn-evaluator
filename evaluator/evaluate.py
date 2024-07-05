@@ -47,7 +47,9 @@ def initialize_over_approximation(program: Program, predicate: str) -> pd.DataFr
     if predicate_type == 'o':
         return True
     else:  # if it is a list
-        c = cartesian_product([H_u if not isinstance(element, list) else [ (set(), set(itertools.combinations_with_replacement(H_u, len(element)))) ] for element in predicate_type])   
+        c = cartesian_product([H_u if not isinstance(element, list) else [ 
+            {r:1} for r in list(itertools.combinations_with_replacement(H_u, len(element)))
+        ] for element in predicate_type])   
         df = pd.DataFrame(c)
         return df
 
@@ -57,7 +59,9 @@ def initialize_under_approximation(program: Program, predicate: str) -> pd.DataF
     if predicate_type == 'o':
         return False
     else:  # if it is a list
-        c = cartesian_product([set() if not isinstance(element, list) else [ (set(), set() ) ] for element in predicate_type])        
+        c = cartesian_product([set() if not isinstance(element, list) else 
+                [ (set(), set() ) ] 
+        for element in predicate_type])        
         df = pd.DataFrame(c)
         return df
 
@@ -171,7 +175,7 @@ def match(a: tuple, b:tuple, under_approximation: dict, over_approximation: dict
         if ai.arg_type == 'data_const' and ai.value != bi:
             return {}, False
         elif ai.arg_type == 'predicate_const':
-            dt_tuples = set(under_approximation[f"dt_{ai.value}"].apply(tuple, axis=1)) # SOS fix that so it won't be just q but anything
+            dt_tuples = set(under_approximation[f"dt_{ai.value}"].apply(tuple, axis=1))
             ndf_tuples = set(over_approximation[f"ndf_{ai.value}"].apply(tuple, axis=1))
             if not dt_tuples.issuperset(bi[0]) or not ndf_tuples.issubset(bi[1]):
                 return {}, False
@@ -184,7 +188,7 @@ def match(a: tuple, b:tuple, under_approximation: dict, over_approximation: dict
     return sub, True
 
 
-def variable_predicate_atov(literal: Literal, atom_type:Union[str,list], under_approximation: dict, over_approximation: dict) -> pd.DataFrame:
+def variable_predicate_atov(literal: Literal) -> pd.DataFrame:
     atom = literal.atom
     predicate = atom.predicate
     args = tuple([str(arg.value) for arg in atom.args ])
@@ -192,62 +196,66 @@ def variable_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
     arg_constants = [const for const in args if const not in arg_vars]
     is_negated = literal.negated
 
-
     var_subs = list(itertools.product(H_u, repeat=len(arg_vars))) # possible substitutions of argument variables
-    possible_subs = list(itertools.product(H_u, repeat=len(args)))
-    if not is_negated:
-        if not arg_vars: # if no variables
-            df = pd.DataFrame(
-                {
-                    predicate: [
-                        (
-                            set([args]), 
-                            set(possible_subs)
-                        )
-                    ]
-                }
-            )
-            return df
-        
-        df = pd.DataFrame(var_subs, columns=arg_vars)
-        for const in arg_constants: # add constants into df
-            df[const] = const
-        def create_tuple_set(row):
-            return {tuple(row)}
+    df = pd.DataFrame(var_subs, columns=arg_vars)
 
-        # Add new column with the required pairs of sets
-        df[predicate] = df.apply(lambda row: (create_tuple_set(row), set(possible_subs)), axis=1)
-        df = df.drop(columns=arg_constants)
-        return  df
+    # Function to expand a row
+    def expand_row(row, vals):
+        return [row.tolist() + [{tuple(row.loc[i] if i in arg_vars else i for i in args): v}] for v in vals]
+    
+    if predicate.startswith('dt_'):
+        predicate = predicate.split("_")[-1]
+        if not is_negated:
+            if df.empty:
+                data = [
+                    { tuple(args): '1'},
+                ]
+                df = pd.DataFrame( {predicate:data})
+            else:
+                expanded_data = df.apply(lambda row: expand_row(row, ['1']), axis=1).tolist()
+                expanded_data_flat = [item for sublist in expanded_data for item in sublist]
+
+                df = pd.DataFrame(expanded_data_flat, columns=list(df.columns) + [predicate])
+        else:
+            if df.empty:
+                data = [
+                    { tuple(args): '0'},
+                ]
+                df = pd.DataFrame( {predicate:data})
+
+            else:
+                expanded_data = df.apply(lambda row: expand_row(row, ['0', '1/2']), axis=1).tolist()
+                expanded_data_flat = [item for sublist in expanded_data for item in sublist]
+
+                df = pd.DataFrame(expanded_data_flat, columns=list(df.columns) + [predicate])
+
     else:
-        if not arg_vars: # if no variables
-            difference = set(possible_subs)
-            difference.discard(args)
-            df = pd.DataFrame(
-                {
-                    predicate: [
-                        (
-                            set(()), 
-                            difference
-                        )
-                    ]
-                }
-            )
-            return df
-        
-        df = pd.DataFrame(var_subs, columns=arg_vars)
-        for const in arg_constants: # add constants into df
-            df[const] = const
+        predicate = predicate.split("_")[-1]
+        if not is_negated:
+            if df.empty:
+                data = [
+                    { tuple(args): '1'},
+                    { tuple(args): '1/2'}
+                ]
+                df = pd.DataFrame( {predicate:data})
+            else:
+                expanded_data = df.apply(lambda row: expand_row(row, ['1', '1/2']), axis=1).tolist()
+                expanded_data_flat = [item for sublist in expanded_data for item in sublist]
 
-        def remove_tuple(row):
-            difference = set(possible_subs)
-            difference.discard(tuple(row))
-            return difference
-        # Add new column with the required pairs of sets
-        df[predicate] = df.apply(lambda row: (set(), set(remove_tuple(row))), axis=1)
-        df = df.drop(columns=arg_constants)
+                df = pd.DataFrame(expanded_data_flat, columns=list(df.columns) + [predicate])
+        else:
+            if df.empty:
+                data = [
+                    { tuple(args): '0'},
+                ]
+                df = pd.DataFrame( {predicate:data})
+            else:
+                expanded_data = df.apply(lambda row: expand_row(row, ['0']), axis=1).tolist()
+                expanded_data_flat = [item for sublist in expanded_data for item in sublist]
 
-        return df
+                df = pd.DataFrame(expanded_data_flat, columns=list(df.columns) + [predicate])
+
+    return df
 
 
 
@@ -274,53 +282,42 @@ def combine_literal_evaluations(literal_evaluations: List[Union[pd.DataFrame, bo
         return reduce(lambda x, y: x and y, boolean_evaluations, True)
 
     # Function to handle the union and intersection for pair values
-    def merge_pairs(pair1, pair2):
-        first_union = pair1[0].union(pair2[0])
-        second_intersection = pair1[1].intersection(pair2[1])
-        return (first_union, second_intersection)
+    def merge_dicts(dict1, dict2):
+        for k in dict2.keys():
+            if k in dict1 and dict1[k] != dict2[k]:
+                return None  # Conflict found, return None to indicate no merge
+        merged_dict = dict1.copy()
+        merged_dict.update(dict2)
+        return merged_dict
 
-    # Function to perform a natural join or Cartesian product with special handling for pairs
-    def join_with_cartesian(left, right):
-        common_columns = list(set(left.columns) & set(right.columns))
-        
-        if not common_columns:
-            # Perform Cartesian product if no common columns
-            left['key'] = 1
-            right['key'] = 1
-            result = pd.merge(left, right, on='key').drop('key', axis=1)
-            return result
-        else:
-            # Separate columns into regular and pair columns
-            pair_columns = [col for col in common_columns if isinstance(left[col].iloc[0], tuple)]
-            regular_columns = [col for col in common_columns if col not in pair_columns]
-            
-            if regular_columns:
-                result = pd.merge(left, right, on=regular_columns)
-            else:
-                left['key'] = 1
-                right['key'] = 1
-                result = pd.merge(left, right, on='key').drop('key', axis=1)
+    def merge_relations(df1,df2):
+        result_df = pd.DataFrame()
 
-            if pair_columns:
-                for col in pair_columns:
-                    if col in common_columns:
-                        # Handle common pair columns
-                        left_pairs = left[[col]].rename(columns={col: col + '_left'})
-                        right_pairs = right[[col]].rename(columns={col: col + '_right'})
-                        temp_df = pd.merge(left_pairs.assign(key=1), right_pairs.assign(key=1), on='key').drop('key', axis=1)
-                        temp_df[col] = temp_df.apply(lambda row: merge_pairs(row[col + '_left'], row[col + '_right']), axis=1)
-                        temp_df = temp_df[[col]]
-                        result = result.merge(temp_df, left_index=True, right_index=True)
-                        result = result.drop(columns=[col + '_left', col + '_right'], errors='ignore')
-                    else:
-                        # Handle non-common pair columns by taking the Cartesian product
-                        left['key'] = 1
-                        right['key'] = 1
-                        result = pd.merge(left, right, on='key').drop('key', axis=1)
+        # Cartesian product of rows for columns containing dictionaries
+        common_columns = set(df1.columns).intersection(set(df2.columns))
 
-            return result.drop(columns=[col for col in result.columns if col.endswith('_x') or col.endswith('_y')], errors='ignore')
-        
-    return reduce(lambda left, right: join_with_cartesian(left, right), dfs)
+        for column in common_columns:
+            if isinstance(df1[column].iloc[0], dict):
+                merged_rows = []
+                for idx1, row1 in df1.iterrows():
+                    for idx2, row2 in df2.iterrows():
+                        merged_dict = merge_dicts(row1[column], row2[column])
+                        if merged_dict:
+                            merged_rows.append({column: merged_dict})
+                result_df = pd.concat([result_df, pd.DataFrame(merged_rows)], ignore_index=True)
+
+        # Add non-common columns from both dataframes
+        for column in set(df1.columns).difference(common_columns):
+            df1_non_common = df1[[column]].loc[result_df.index // len(df2)].reset_index(drop=True)
+            result_df = pd.concat([result_df, df1_non_common], axis=1)
+
+        for column in set(df2.columns).difference(common_columns):
+            df2_non_common = df2[[column]].loc[result_df.index % len(df2)].reset_index(drop=True)
+            result_df = pd.concat([result_df, df2_non_common], axis=1)
+
+        return result_df
+    
+    return reduce(lambda left, right: merge_relations(left, right), dfs)
 
 
 
