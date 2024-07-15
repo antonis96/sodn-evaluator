@@ -12,27 +12,6 @@ def cartesian_product(elements):
     products = list(itertools.product(*elements))
     return products
 
-# Function to generate all subsets of a given set, allowing repetitions
-def generate_relations(elements):
-    relations = []
-    n = len(elements)
-    for r in range(n + 1):
-        for subset in itertools.combinations(elements, r):
-            relations.append(set(subset))
-    return relations
-
-# Function to process the input list and associate values
-def associate_values(atom_type, H_u):
-    associated_values = []
-    for i, element in enumerate(atom_type):
-        if element == 'i':
-            associated_values.append(list(H_u))
-        elif isinstance(element, list):
-            pairs = list(itertools.product(H_u, repeat=len(element))) 
-            subsets = generate_relations(pairs)
-            associated_values.append(subsets)
-    return associated_values
-
 def print_approximation(approximation: dict):
     for key, value in approximation.items():
         print(f"Predicate: {key}\n")
@@ -47,9 +26,12 @@ def initialize_over_approximation(program: Program, predicate: str) -> pd.DataFr
     if predicate_type == 'o':
         return True
     else:  # if it is a list
-        c = cartesian_product([H_u if not isinstance(element, list) else [ 
-            {r:1} for r in list(itertools.combinations_with_replacement(H_u, len(element)))
-        ] for element in predicate_type])   
+        c = cartesian_product([
+                H_u if not isinstance(element, list) else [
+                {r: value} for r in list(itertools.combinations_with_replacement(H_u, len(element)))
+                for value in ['0', '1/2', '1']
+            ] for element in predicate_type
+        ]) 
         df = pd.DataFrame(c)
         return df
 
@@ -60,7 +42,7 @@ def initialize_under_approximation(program: Program, predicate: str) -> pd.DataF
         return False
     else:  # if it is a list
         c = cartesian_product([set() if not isinstance(element, list) else 
-                [ (set(), set() ) ] 
+                [ set() ] # maybe needs to change
         for element in predicate_type])        
         df = pd.DataFrame(c)
         return df
@@ -84,7 +66,7 @@ def atov(literal: Literal, types:dict, under_approximation: dict, over_approxima
     return (
         constant_predicate_atov(literal, types[literal.atom.predicate], under_approximation, over_approximation)
         if literal.atom.predicate.islower()
-        else variable_predicate_atov(literal, ['i' for i in range(0,len(literal.atom.args))], under_approximation, over_approximation)
+        else variable_predicate_atov(literal)
     )    
 
 
@@ -103,7 +85,6 @@ def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
         return stored_df if not is_negated else not stored_df
     
     if not vars:
-
         if is_negated:
             for row in stored_df.itertuples(index=False, name=None):
                 sub, valid_sub = match(atom.args, row, under_approximation, over_approximation)
@@ -124,48 +105,31 @@ def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
             continue
         matches.append(sub)
    
-
     matched_df = pd.DataFrame(matches,columns=vars)
     if not is_negated:
         return matched_df
     else:
-        indexes_to_include = [args.index(var) for var in vars]
-        associated_values = associate_values(atom_type, H_u)
-        full_df = pd.DataFrame(cartesian_product(associated_values))
-        constants = [str(v) for v in atom.args if str(v) not in vars]
-        for c in constants:
-            if f"dt_{c}" not in under_approximation.keys():
-                matched_df[c] = [c]
-            else:
-                dt_tuples = set(under_approximation[f"dt_{c}"].apply(tuple, axis=1)) 
-                ndf_tuples = set(over_approximation[f"ndf_{c}"].apply(tuple, axis=1))
-                matched_df[c] = [(dt_tuples, ndf_tuples)]
+        
+        var_types = [t for t, a in zip(atom_type, args) if a.isupper()]
+        c = cartesian_product([
+            H_u if not isinstance(element, list) else [
+            {r: value} for r in list(itertools.combinations_with_replacement(H_u, len(element)))
+            for value in ['0', '1/2', '1']
+        ] for element in var_types
+        ]) 
+        full_df = pd.DataFrame(c, columns=matched_df.columns)
 
-        unmatched = []
-        for f_row in full_df.itertuples(index=False, name=None):
-            valid_match = False
-            for m_row in matched_df.itertuples(index=False, name=None):
-                if rows_match(f_row, m_row, atom_type):
-                    valid_match = True
-                    break
-            if not valid_match:
-                unmatched.append(f_row)
-     
-        unmatched  = [tuple((el, el) if isinstance(el, set) else el for el in tup) for tup in unmatched]
-        data_selected = [[r[i] for i in indexes_to_include] for r in unmatched]
-        return pd.DataFrame(data_selected,columns=vars)
+        df1 = full_df.map(str)
+        df2 = matched_df.map(str)
 
- 
-def rows_match(f_row, s_row, atom_type):
-    for i in range(len(f_row)):
-        if isinstance(atom_type[i], str):
-            if f_row[i] != s_row[i]:
-                return False
-        elif isinstance(atom_type[i], list):
-            if  not f_row[i].issuperset(s_row[i][0]) or not f_row[i].issubset(s_row[i][1]):
-                return False
-       
-    return True
+        # Find rows in full df that are not in matched
+        diff_df = df1.merge(df2, indicator=True, how='left').loc[lambda x: x['_merge'] == 'left_only']
+
+        # Drop the '_merge' column used for identification
+        diff_df.drop(columns=['_merge'], inplace=True)
+        return diff_df
+    
+
 
 def match(a: tuple, b:tuple, under_approximation: dict, over_approximation: dict):
     if len(a) != len(b):
@@ -174,7 +138,7 @@ def match(a: tuple, b:tuple, under_approximation: dict, over_approximation: dict
     for ai, bi in zip(a, b):
         if ai.arg_type == 'data_const' and ai.value != bi:
             return {}, False
-        elif ai.arg_type == 'predicate_const':
+        elif ai.arg_type == 'predicate_const': #TODO
             dt_tuples = set(under_approximation[f"dt_{ai.value}"].apply(tuple, axis=1))
             ndf_tuples = set(over_approximation[f"ndf_{ai.value}"].apply(tuple, axis=1))
             if not dt_tuples.issuperset(bi[0]) or not ndf_tuples.issubset(bi[1]):
@@ -220,6 +184,7 @@ def variable_predicate_atov(literal: Literal) -> pd.DataFrame:
             if df.empty:
                 data = [
                     { tuple(args): '0'},
+                    { tuple(args): '1/2'},
                 ]
                 df = pd.DataFrame( {predicate:data})
 
