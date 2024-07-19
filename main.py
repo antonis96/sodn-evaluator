@@ -8,7 +8,8 @@ from evaluator.evaluate import (
     evaluate_facts, 
     process_rules,
     print_approximation,
-    compare_dicts_of_dataframes
+    compare_dicts_of_dataframes,
+    handle_query
 )
 
 def main():
@@ -50,10 +51,16 @@ def main():
         current_under_approximation = copy.deepcopy(new_under_approximation)
         current_over_approximation = copy.deepcopy(new_over_approximation)
 
+    while True:
+        question = input("?-  ")
+        
+        if question.lower() == 'exit':
+            print("Exiting.")
+            break
+        
+        answer = handle_query(question)
+        print("Answer:", answer)
 
-        print_approximation(current_under_approximation)
-        print_approximation(current_over_approximation)
-        break
 
 if __name__ == "__main__":
     main()
