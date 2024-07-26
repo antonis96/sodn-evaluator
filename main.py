@@ -9,7 +9,8 @@ from evaluator.evaluate import (
     process_rules,
     print_approximation,
     compare_dicts_of_dataframes,
-    handle_query
+    handle_query,
+    filter_rules_without_idb_predicates
 )
 
 def main():
@@ -38,28 +39,42 @@ def main():
 
     current_under_approximation = evaluate_facts(dt_program,current_under_approximation)
     current_over_approximation = evaluate_facts(ndf_program,current_over_approximation)
+    filtered_dt_program = filter_rules_without_idb_predicates(dt_program,'dt')
+    filtered_ndf_program = filter_rules_without_idb_predicates(ndf_program,'ndf')
+
+    new_over_approximation = process_rules(filtered_ndf_program, types, current_under_approximation, current_over_approximation, 'ndf') 
+    new_under_approximation = process_rules(filtered_dt_program, types, current_under_approximation, current_over_approximation, 'dt')
 
 
-    while True:
+    current_under_approximation = copy.deepcopy(new_under_approximation)
+    current_over_approximation = copy.deepcopy(new_over_approximation)
+
+    for i in range(0,5):
+    # while True:
 
         new_over_approximation = process_rules(ndf_program, types, current_under_approximation, current_over_approximation, 'ndf')
         new_under_approximation = process_rules(dt_program, types, current_under_approximation, current_over_approximation, 'dt')
-       
-        if compare_dicts_of_dataframes(current_under_approximation, new_under_approximation) and compare_dicts_of_dataframes(current_over_approximation, new_over_approximation):
-            break
-
+        # print("Edw")
+        # if compare_dicts_of_dataframes(current_under_approximation, new_under_approximation) and True: # compare_dicts_of_dataframes(current_over_approximation, new_over_approximation):
+        #     break
+        
         current_under_approximation = copy.deepcopy(new_under_approximation)
         current_over_approximation = copy.deepcopy(new_over_approximation)
+        
 
-    while True:
-        question = input("?-  ")
+    print_approximation(current_under_approximation)
+    print_approximation(current_over_approximation)
+
+
+    # while True:
+    #     question = input("?-  ")
         
-        if question.lower() == 'exit':
-            print("Exiting.")
-            break
+    #     if question.lower() == 'exit':
+    #         print("Exiting.")
+    #         break
         
-        answer = handle_query(question)
-        print("Answer:", answer)
+    #     answer = handle_query(question)
+    #     print("Answer:", answer)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ from functools import reduce
 from itertools import product
 
 
-H_u = {'a','b','c'}
+H_u = {'a','b', 'c'}
 
 def cartesian_product(elements):
     products = list(itertools.product(*elements))
@@ -35,77 +35,82 @@ def initialize_over_approximation(program: Program, predicate: str) -> pd.DataFr
         ]) 
         df = pd.DataFrame(c)
         return df
+    
 
-def get_false_combinations(df_true):
-    # Extract columns and unique values for each column
-    columns = df_true.columns
+def gather_all_keys(dicts):
+    """Collect all unique keys from a list of dictionaries."""
+    all_keys = set()
+    for d in dicts:
+        all_keys.update(d.keys())
+    return list(all_keys)
 
-    data_columns = [col for col in columns if df_true[col].apply(lambda x: isinstance(x, str)).all()]
-    relation_columns = [col for col in columns if col not in data_columns]
+# def generate_dict_combinations(d, possible_values):
+#     """Generate all possible dictionary combinations by changing at least one value."""
+#     if not d:
+#         return [{}]
+#     keys, current_values = zip(*d.items())
+#     all_combinations = itertools.product(*[possible_values if val == current_value else [current_value] for val, current_value in zip(current_values, current_values)])
+#     return [dict(zip(keys, combo)) for combo in all_combinations if combo != current_values]
 
-    def get_relation_keys(df, relation_columns):
-        keys_dict = {}
-        for col in relation_columns:
-            keys = set()
-            for val in df[col]:
-                if isinstance(val, dict):
-                    keys.update(val.keys())
-            keys_dict[col] = list(keys)
-        return keys_dict
+def generate_dict_combinations(all_keys, possible_values):
+    value_combinations = list(itertools.product(possible_values, repeat=len(all_keys)))
+    dict_combinations = [dict(zip(all_keys, values)) for values in value_combinations]
+    return dict_combinations
 
-    relation_keys = get_relation_keys(df_true, relation_columns)
+def remove_rows_with_k(data, k):
+  return [row for row in data if k != {key: value for key, value in row.items() if key in k}]
 
-    data_combinations = list(product(H_u, repeat=len(data_columns)))
 
-    def generate_relation_combinations(relation_columns, relation_keys):
-        all_combinations = []
-        for col in relation_columns:
-            key_combinations = list(product(['0', '1/2', '1'], repeat=len(relation_keys[col])))
-            all_combinations.append((col, key_combinations))
-        return all_combinations
+def remove_nan_keys(d):
+    """Remove keys with NaN values from a dictionary."""
+    return {k: v for k, v in d.items() if pd.notna(v)}
 
-    relation_combinations = generate_relation_combinations(relation_columns, relation_keys)
+def get_false_combinations(df, predicate_type):
+    if df.empty:
+        c = cartesian_product([
+                H_u if not isinstance(element, list) else [
+                {r: value} for r in list(itertools.combinations_with_replacement(H_u, len(element)))
+                for value in ['0', '1/2', '1']
+            ] for element in predicate_type
+        ]) 
+        return pd.DataFrame(c,columns=df.columns)
+    
 
-    def is_true(row):
-        for _, true_row in df_true.iterrows():
-            match = True
-            for col in data_columns:
-                if row.get(col) != true_row.get(col):
-                    match = False
-                    break
-            for rel_col in relation_columns:
-                if rel_col in row and rel_col in true_row:
-                    for key in row[rel_col]:
-                        if row[rel_col][key] != true_row[rel_col].get(key):
-                            match = False
-                            break
-            if match:
-                return True
-        return False
+    dict_columns = [col for col in df.columns if isinstance(df[col].dropna().iloc[0], dict)]
+    plain_columns = [col for col in df.columns if col not in dict_columns]
 
-    def generate_rows(data_comb, rel_comb_idx=0, current_row=None):
-        if current_row is None:
-            current_row = dict(zip(data_columns, data_comb))
+    # Handling dictionary columns
+    dict_combinations = []
+    for col in dict_columns:
+        all_combos = []
+        all_keys = gather_all_keys(df[col].dropna().tolist())
+        all_combos.extend(generate_dict_combinations(all_keys, ['0', '1', '1/2']))
+        for entry in df[col].dropna():
 
-        if rel_comb_idx >= len(relation_combinations):
-            if not is_true(current_row):
-                false_combinations.append(current_row.copy())
-            return
+            all_combos = remove_rows_with_k(all_combos, entry)
 
-        col, key_combinations = relation_combinations[rel_comb_idx]
-        for key_comb in key_combinations:
-            current_row[col] = dict(zip(relation_keys[col], key_comb))
-            generate_rows(data_comb, rel_comb_idx + 1, current_row)
+        unique_combos = pd.DataFrame(all_combos).drop_duplicates().to_dict('records')
+        dict_combinations.append(unique_combos)
 
-    false_combinations = []
 
-    for data_comb in data_combinations:
-        generate_rows(data_comb)
+    # Create Cartesian product of all column combinations
+    all_combinations = list(itertools.product(*([ H_u for col in plain_columns] + dict_combinations)))
 
-    df_false = pd.DataFrame(false_combinations)
+    # Convert combinations to DataFrame
+    new_rows = pd.DataFrame(all_combinations, columns=plain_columns + dict_columns)
 
-    return df_false
+    # Convert rows to hashable form to facilitate comparison
+    df_hashable = df.apply(hashable, axis=1)
+    new_rows_hashable = new_rows.apply(hashable, axis=1)
 
+    # Filter new rows to include only those not present in original df
+    unique_new_rows = new_rows[~new_rows_hashable.isin(df_hashable)]
+
+    # Use loc to remove NaN keys from dictionaries in the DataFrame safely
+    for col in dict_columns:
+        unique_new_rows.loc[:, col] = unique_new_rows[col].apply(remove_nan_keys)
+
+    return unique_new_rows.reset_index(drop=True)
 
 
 def initialize_under_approximation(program: Program, predicate: str) -> pd.DataFrame:
@@ -181,7 +186,7 @@ def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
     if not is_negated:
         return matched_df
     else:
-        false_df = get_false_combinations(matched_df)
+        false_df = get_false_combinations(matched_df,atom_type)
         return false_df
     
 
@@ -271,7 +276,7 @@ def variable_predicate_atov(literal: Literal) -> pd.DataFrame:
                 ]
                 df = pd.DataFrame( {predicate:data})
             else:
-                expanded_data = df.apply(lambda row: expand_row(row, ['1', '1/2']), axis=1).tolist()
+                expanded_data = df.apply(lambda row: expand_row(row, ['1','1/2']), axis=1).tolist()
                 expanded_data_flat = [item for sublist in expanded_data for item in sublist]
 
                 df = pd.DataFrame(expanded_data_flat, columns=list(df.columns) + [predicate])
@@ -291,8 +296,7 @@ def variable_predicate_atov(literal: Literal) -> pd.DataFrame:
 
 
 
-
-def combine_literal_evaluations(literal_evaluations: List[Union[pd.DataFrame, bool]]) -> Union[pd.DataFrame, bool]:
+def combine_literal_evaluations(literal_evaluations: List[Union[pd.DataFrame,bool]]) -> Union[pd.DataFrame,bool]:
     if not literal_evaluations:
         return pd.DataFrame()  # Return an empty dataframe if the list is empty
 
@@ -308,54 +312,60 @@ def combine_literal_evaluations(literal_evaluations: List[Union[pd.DataFrame, bo
     # Collect non-empty dataframes
     dfs = [df for df in literal_evaluations if isinstance(df, pd.DataFrame) and not df.empty]
 
-    # If there are no dataframes, return an empty dataframe
     if not dfs:
         boolean_evaluations = [eval for eval in literal_evaluations if isinstance(eval, bool)]
         return reduce(lambda x, y: x and y, boolean_evaluations, True)
 
-    # Function to handle the union and intersection for pair values
-    def merge_dicts(dict1, dict2):
-        for k in dict2.keys():
-            if k in dict1 and dict1[k] != dict2[k]:
-                return None  # Conflict found, return None to indicate no merge
-        merged_dict = dict1.copy()
-        merged_dict.update(dict2)
-        return merged_dict
 
-    def merge_relations(df1, df2):
-        common_columns = df1.columns.intersection(df2.columns)
-
-        common_first_order_columns = [col for col in common_columns if not isinstance(df1[col].iloc[0], dict)]
-
-        if common_first_order_columns:
-            # Perform the natural join on these common_first_order_columns columns
-            result = pd.merge(df1, df2, on=common_first_order_columns)
+    # Iterate over the DataFrames and their indices
+    for idx, df in enumerate(dfs):
+        new_columns = {col: f"{col}_{idx}" for col in df.columns if all(isinstance(item, dict) for item in df[col])}
+        df.rename(columns=new_columns, inplace=True)
+    # Perform a natural join between all DataFrames
+    combined_df = dfs[0]
+    for df in dfs[1:]:
+        common_columns = combined_df.columns.intersection(df.columns)
+        if common_columns.any():
+            combined_df = pd.merge(combined_df, df, how='inner')
         else:
-            result = pd.merge(df1, df2, how='cross')
+            combined_df = pd.merge(combined_df, df, how='cross')
+    
+    # Identify columns with common prefixes and merge dictionaries
+    column_groups = {}
+    for col in combined_df.columns:
+        prefix = col.rsplit('_', 1)[0]
+        if prefix not in column_groups:
+            column_groups[prefix] = []
+        column_groups[prefix].append(col)
+    
+    def merge_dicts_series(series):
+        merged = {}
+        for d in series:
+            for k, v in d.items():
+                if k in merged:
+                    if (merged[k] == '1' and v == '0') or (merged[k] == '0' and v == '1'):
+                        return None  # Conflict, drop this row
+                    if (merged[k] == '1' and v == '1/2') or (merged[k] == '1/2' and v == '1'):
+                        merged[k] = '1/2'
+                    elif (merged[k] == '0' and v == '1/2') or (merged[k] == '1/2' and v == '0'):
+                        merged[k] = '1/2'
+                    else:
+                        merged[k] = v
+                else:
+                    merged[k] = v
+        return merged
 
-        # Identify dictionary columns
-        dict_columns_df1 = [col for col in df1.columns if isinstance(df1[col].iloc[0], dict)]
-        dict_columns_df2 = [col for col in df2.columns if isinstance(df2[col].iloc[0], dict)]
-
-        # Find common dictionary columns
-        common_second_order_columns = list(set(dict_columns_df1) & set(dict_columns_df2))
-
-        # Merge dictionaries in common dictionary columns
-        for col in common_second_order_columns:
-            result[col] = result.apply(
-                lambda row: merge_dicts(row[f'{col}_x'], row[f'{col}_y']) if pd.notna(row[f'{col}_x']) and pd.notna(row[f'{col}_y']) else row[f'{col}_x'] if pd.notna(row[f'{col}_x']) else row[f'{col}_y'],
-                axis=1
-            )
-            # Drop rows where merge_dicts returned None
-            result = result[result[col].notna()]
-            result.drop(columns=[f'{col}_x', f'{col}_y'], inplace=True)
-        return result
-
-    return reduce(lambda left, right: merge_relations(left, right), dfs)
-
-
-
-
+    for prefix, columns in column_groups.items():
+        if len(columns) > 1:
+            combined_df[prefix] = combined_df[columns].apply(merge_dicts_series, axis=1)
+            combined_df.drop(columns=columns, inplace=True)
+            combined_df.dropna(subset=[prefix], inplace=True)
+        elif len(columns) == 1 and any(all(isinstance(item, dict) for item in combined_df[col]) for col in columns):
+            original_col_name = prefix
+            combined_df.rename(columns={columns[0]: original_col_name}, inplace=True)
+    
+    return combined_df
+ 
 
 def vtoa(head: PredicateHead, body_evaluation: Union[pd.DataFrame, bool]) -> Union[pd.DataFrame, bool]:
     args = tuple([str(arg.value) for arg in head.args ])
@@ -382,7 +392,19 @@ def vtoa(head: PredicateHead, body_evaluation: Union[pd.DataFrame, bool]) -> Uni
     return pd.DataFrame(result)
 
 
-def update_approximation(approximation: dict, head: PredicateHead, values: Union[pd.DataFrame, bool], approximation_to_update: str) -> bool:
+
+
+def make_hashable(value):
+    if isinstance(value, dict):
+        return frozenset((make_hashable(k), make_hashable(v)) for k, v in value.items())
+    elif isinstance(value, (list, set, tuple)):
+        return tuple(make_hashable(x) for x in value)
+    return value
+
+def hashable(row):
+    return tuple((k, make_hashable(v)) for k, v in row.items())
+
+def update_approximation(approximation: dict[str, Union[pd.DataFrame, bool]], head: PredicateHead, values: Union[pd.DataFrame, bool], approximation_to_update: str) -> bool:
     changes_made = False
     predicate = head.predicate
     
@@ -390,7 +412,7 @@ def update_approximation(approximation: dict, head: PredicateHead, values: Union
         if predicate in approximation:
             if isinstance(approximation[predicate], pd.DataFrame):
                 original_length = len(approximation[predicate])
-                approximation[predicate] = pd.DataFrame(values)
+                approximation[predicate] = values                
                 if len(approximation[predicate]) != original_length:
                     changes_made = True
             else:
@@ -408,22 +430,60 @@ def update_approximation(approximation: dict, head: PredicateHead, values: Union
 
     return changes_made
 
+def filter_rules_without_idb_predicates(program, mode):
+    idb_predicates = {rule.head.predicate for rule in program.rules}
+    
+    filtered_rules = []
+    for rule in program.rules:
+        has_idb_predicate = any(literal.atom.predicate in idb_predicates for literal in rule.body)
+        if not has_idb_predicate:
+            filtered_rules.append(rule)
+    
+    filtered_program = Program(
+        types={f"{mode}_{k}": t for k, t in program.types.items()},
+        predicates=[f"{mode}_{p}" for p in program.predicates]
+    )
+    for r in filtered_rules:
+        filtered_program.add_rule(r)
+    
+    return filtered_program
+    
+def group_rules_by_head(rules: List[str]) -> dict[str, List[str]]:
+    rule_dict = {}
+
+    for rule in rules:
+        if rule.head.predicate not in rule_dict:
+            rule_dict[rule.head.predicate] = []
+        rule_dict[rule.head.predicate].append(rule)
+
+    return rule_dict
+
 def process_rules(program: Program, types: list, current_under_approximation: dict, current_over_approximation: dict, mode: str) -> dict:
     while True:
         new_tuples_produced = False
         new_under_approximation = copy.deepcopy(current_under_approximation)
         new_over_approximation = copy.deepcopy(current_over_approximation)
-        
-        for rule in program.rules:
-            body = rule.body
-            literal_evaluations = []
-            for l in body:
-                literal_evaluations.append(
-                    atov(l, types, new_under_approximation, new_over_approximation)
-                )
-            body_evaluation = combine_literal_evaluations(literal_evaluations)
-            
-            head_tuples = vtoa(rule.head, body_evaluation)
+        grouped_rules = group_rules_by_head(program.rules)
+        new_tuples_produced = False
+        for p in grouped_rules.keys():
+            head_tuples = pd.DataFrame()
+            for rule in grouped_rules[p]:
+                body = rule.body
+                literal_evaluations = []
+                for l in body:
+                    literal_evaluations.append(
+                        atov(l, types, new_under_approximation, new_over_approximation)
+                    )
+                body_evaluation = combine_literal_evaluations(literal_evaluations)
+                
+                rule_tuples = vtoa(rule.head, body_evaluation)
+                if isinstance(rule_tuples, bool):
+                    head_tuples = rule_tuples
+                else:
+                    head_tuples = pd.concat([head_tuples, rule_tuples])
+                    head_tuples['__hashable__'] = head_tuples.apply(hashable, axis=1)
+                    head_tuples = head_tuples.drop_duplicates(subset=['__hashable__']).drop(columns=['__hashable__']).reset_index(drop=True)
+    
             if mode == 'dt':
                 if update_approximation(new_under_approximation, rule.head, head_tuples, mode):
                     new_tuples_produced = True
