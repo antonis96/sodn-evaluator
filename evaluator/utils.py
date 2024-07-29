@@ -5,114 +5,41 @@ import itertools
 import copy 
 from functools import reduce
 from itertools import product
+from .helpers import *
 
 
-H_u = {'a','b', 'c'}
+def extract_herbrand_univse(program: Program) -> set:
+    herbrand_universe = set()
+    for f in program.facts:
+        herbrand_universe.update(set(f.head.args))
+    
+    for r in program.rules:
+        for arg in r.head.args:
+            if arg.value.islower():
+                herbrand_universe.add(arg.value)
+        # args that are not predicate constants in the rule's body
+        non_predicate_body_args = set()
+        for l in r.body:
+            for arg in l.atom.args:
+                if arg.value.islower() and arg.value not in program.predicates:
+                 non_predicate_body_args.add(arg.value)
+        herbrand_universe.update(non_predicate_body_args)
+    return {str(element) for element in herbrand_universe}
 
-def cartesian_product(elements):
-    products = list(itertools.product(*elements))
-    return products
-
-def print_approximation(approximation: dict):
-    for key, value in approximation.items():
-        print(f"Predicate: {key}\n")
-        if isinstance(value, pd.DataFrame):
-            print(value.to_string(index=False, header=False))
-        elif isinstance(value, bool):
-            print(value)
-        print("\n" + "="*40 + "\n")
-
-def initialize_over_approximation(program: Program, predicate: str) -> pd.DataFrame:
+def initialize_over_approximation(program: Program, predicate: str, herbrand_universe: set) -> pd.DataFrame:
     predicate_type = program.types[predicate]
     if predicate_type == 'o':
         return True
     else:  # if it is a list
         c = cartesian_product([
-                H_u if not isinstance(element, list) else [
-                {r: value} for r in list(itertools.combinations_with_replacement(H_u, len(element)))
+                herbrand_universe if not isinstance(element, list) else [
+                {r: value} for r in list(itertools.combinations_with_replacement(herbrand_universe, len(element)))
                 for value in ['0', '1/2', '1']
             ] for element in predicate_type
         ]) 
         df = pd.DataFrame(c)
         return df
     
-
-def gather_all_keys(dicts):
-    """Collect all unique keys from a list of dictionaries."""
-    all_keys = set()
-    for d in dicts:
-        all_keys.update(d.keys())
-    return list(all_keys)
-
-# def generate_dict_combinations(d, possible_values):
-#     """Generate all possible dictionary combinations by changing at least one value."""
-#     if not d:
-#         return [{}]
-#     keys, current_values = zip(*d.items())
-#     all_combinations = itertools.product(*[possible_values if val == current_value else [current_value] for val, current_value in zip(current_values, current_values)])
-#     return [dict(zip(keys, combo)) for combo in all_combinations if combo != current_values]
-
-def generate_dict_combinations(all_keys, possible_values):
-    value_combinations = list(itertools.product(possible_values, repeat=len(all_keys)))
-    dict_combinations = [dict(zip(all_keys, values)) for values in value_combinations]
-    return dict_combinations
-
-def remove_rows_with_k(data, k):
-  return [row for row in data if k != {key: value for key, value in row.items() if key in k}]
-
-
-def remove_nan_keys(d):
-    """Remove keys with NaN values from a dictionary."""
-    return {k: v for k, v in d.items() if pd.notna(v)}
-
-def get_false_combinations(df, predicate_type):
-    if df.empty:
-        c = cartesian_product([
-                H_u if not isinstance(element, list) else [
-                {r: value} for r in list(itertools.combinations_with_replacement(H_u, len(element)))
-                for value in ['0', '1/2', '1']
-            ] for element in predicate_type
-        ]) 
-        return pd.DataFrame(c,columns=df.columns)
-    
-
-    dict_columns = [col for col in df.columns if isinstance(df[col].dropna().iloc[0], dict)]
-    plain_columns = [col for col in df.columns if col not in dict_columns]
-
-    # Handling dictionary columns
-    dict_combinations = []
-    for col in dict_columns:
-        all_combos = []
-        all_keys = gather_all_keys(df[col].dropna().tolist())
-        all_combos.extend(generate_dict_combinations(all_keys, ['0', '1', '1/2']))
-        for entry in df[col].dropna():
-
-            all_combos = remove_rows_with_k(all_combos, entry)
-
-        unique_combos = pd.DataFrame(all_combos).drop_duplicates().to_dict('records')
-        dict_combinations.append(unique_combos)
-
-
-    # Create Cartesian product of all column combinations
-    all_combinations = list(itertools.product(*([ H_u for col in plain_columns] + dict_combinations)))
-
-    # Convert combinations to DataFrame
-    new_rows = pd.DataFrame(all_combinations, columns=plain_columns + dict_columns)
-
-    # Convert rows to hashable form to facilitate comparison
-    df_hashable = df.apply(hashable, axis=1)
-    new_rows_hashable = new_rows.apply(hashable, axis=1)
-
-    # Filter new rows to include only those not present in original df
-    unique_new_rows = new_rows[~new_rows_hashable.isin(df_hashable)]
-
-    # Use loc to remove NaN keys from dictionaries in the DataFrame safely
-    for col in dict_columns:
-        unique_new_rows.loc[:, col] = unique_new_rows[col].apply(remove_nan_keys)
-
-    return unique_new_rows.reset_index(drop=True)
-
-
 def initialize_under_approximation(program: Program, predicate: str) -> pd.DataFrame:
     predicate_type = program.types[predicate]
     if predicate_type == 'o':
@@ -123,8 +50,7 @@ def initialize_under_approximation(program: Program, predicate: str) -> pd.DataF
         for element in predicate_type])        
         df = pd.DataFrame(c)
         return df
-
-
+    
 def evaluate_facts(program: Program, under_approximation: dict) -> dict:
     new_tuples = {key: [] for key in under_approximation.keys()}
 
@@ -138,16 +64,72 @@ def evaluate_facts(program: Program, under_approximation: dict) -> dict:
 
     return under_approximation
 
+def process_rules(program: Program, types: list, current_under_approximation: dict, current_over_approximation: dict, mode: str, herbrand_universe) -> dict:
+    
+    grouped_rules = group_rules_by_head(program.rules)
 
-def atov(literal: Literal, types:dict, under_approximation: dict, over_approximation: dict) -> pd.DataFrame:
+    predicate_tuples = {
+        predicate: pd.DataFrame()
+        for predicate in program.predicates
+    }
+   
+    for i in range(0,10):
+        new_tuples_produced = False
+        new_under_approximation = copy.deepcopy(current_under_approximation)
+        new_over_approximation = copy.deepcopy(current_over_approximation)
+
+        for p in grouped_rules.keys():
+            head_tuples = predicate_tuples[p]
+
+            for rule in grouped_rules[p]:
+                body = rule.body
+                literal_evaluations = []
+                for l in body:
+                    literal_evaluations.append(
+                        atov(l, types, new_under_approximation, new_over_approximation, herbrand_universe)
+                    )
+                
+                body_evaluation = combine_literal_evaluations(literal_evaluations)
+                
+                rule_tuples = vtoa(rule.head, body_evaluation)
+
+                if isinstance(rule_tuples, bool):
+                    head_tuples = rule_tuples
+                else:
+                    head_tuples = pd.concat([head_tuples, rule_tuples])
+                    head_tuples['__hashable__'] = head_tuples.apply(hashable, axis=1)
+                    head_tuples = head_tuples.drop_duplicates(subset=['__hashable__']).drop(columns=['__hashable__']).reset_index(drop=True)
+        
+        predicate_tuples[p] = pd.concat([predicate_tuples[p], head_tuples])
+            
+            # if mode == 'dt':
+            #     if update_approximation(new_under_approximation, rule.hepredicate_tuplesad, [p], mode):
+            #         new_tuples_produced = True
+            # elif mode == 'ndf':
+            #     if update_approximation(new_over_approximation, rule.head, predicate_tuples[p], mode):
+            #         new_tuples_produced = True
+
+        # if not new_tuples_produced:
+        #     break
+        
+
+        current_under_approximation = copy.deepcopy(new_under_approximation)
+        current_over_approximation = copy.deepcopy(new_over_approximation)
+    print_approximation(predicate_tuples)
+    if mode == 'dt':
+        return new_under_approximation
+    else:
+        return new_over_approximation
+
+
+def atov(literal: Literal, types:dict, under_approximation: dict, over_approximation: dict, herbrand_universe) -> pd.DataFrame:
     return (
-        constant_predicate_atov(literal, types[literal.atom.predicate], under_approximation, over_approximation)
+        constant_predicate_atov(literal, types[literal.atom.predicate], under_approximation, over_approximation, herbrand_universe)
         if literal.atom.predicate.islower()
-        else variable_predicate_atov(literal)
+        else variable_predicate_atov(literal, herbrand_universe)
     )    
 
-
-def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_approximation: dict, over_approximation: dict) -> Union[pd.DataFrame,bool]:
+def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_approximation: dict, over_approximation: dict, herbrand_universe) -> Union[pd.DataFrame,bool]:
     atom = literal.atom
     predicate = atom.predicate
     args = tuple([str(arg.value) for arg in atom.args ])
@@ -186,9 +168,8 @@ def constant_predicate_atov(literal: Literal, atom_type:Union[str,list], under_a
     if not is_negated:
         return matched_df
     else:
-        false_df = get_false_combinations(matched_df,atom_type)
+        false_df = get_false_combinations(matched_df,atom_type, herbrand_universe)
         return false_df
-    
 
 def match(a: tuple, b:tuple, under_approximation: dict, over_approximation: dict):
     if len(a) != len(b):
@@ -223,16 +204,63 @@ def match(a: tuple, b:tuple, under_approximation: dict, over_approximation: dict
                 return {}, False
     return sub, True
 
+# TODO add types
+def get_false_combinations(df, predicate_type, herbrand_universe):
+    if df.empty:
+        c = cartesian_product([
+                herbrand_universe if not isinstance(element, list) else [
+                {r: value} for r in list(itertools.combinations_with_replacement(herbrand_universe, len(element)))
+                for value in ['0', '1/2', '1']
+            ] for element in predicate_type
+        ]) 
+        return pd.DataFrame(c,columns=df.columns)
+    
 
-def variable_predicate_atov(literal: Literal) -> pd.DataFrame:
+    dict_columns = [col for col in df.columns if isinstance(df[col].dropna().iloc[0], dict)]
+    plain_columns = [col for col in df.columns if col not in dict_columns]
+
+    # Handling dictionary columns
+    dict_combinations = []
+    for col in dict_columns:
+        all_combos = []
+        all_keys = gather_all_keys(df[col].dropna().tolist())
+        all_combos.extend(generate_dict_combinations(all_keys, ['0', '1', '1/2']))
+        for entry in df[col].dropna():
+
+            all_combos = remove_rows_with_k(all_combos, entry)
+
+        unique_combos = pd.DataFrame(all_combos).drop_duplicates().to_dict('records')
+        dict_combinations.append(unique_combos)
+
+
+    # Create Cartesian product of all column combinations
+    all_combinations = list(itertools.product(*([ herbrand_universe for col in plain_columns] + dict_combinations)))
+
+    # Convert combinations to DataFrame
+    new_rows = pd.DataFrame(all_combinations, columns=plain_columns + dict_columns)
+
+    # Convert rows to hashable form to facilitate comparison
+    df_hashable = df.apply(hashable, axis=1)
+    new_rows_hashable = new_rows.apply(hashable, axis=1)
+
+    # Filter new rows to include only those not present in original df
+    unique_new_rows = new_rows[~new_rows_hashable.isin(df_hashable)]
+
+    # Use loc to remove NaN keys from dictionaries in the DataFrame safely
+    for col in dict_columns:
+        unique_new_rows.loc[:, col] = unique_new_rows[col].apply(remove_nan_keys)
+
+    return unique_new_rows.reset_index(drop=True)
+
+
+def variable_predicate_atov(literal: Literal, herbrand_universe) -> pd.DataFrame:
     atom = literal.atom
     predicate = atom.predicate
     args = tuple([str(arg.value) for arg in atom.args ])
     arg_vars = [str(v) for v in tuple(atom.args) if v.value.isupper()]
-    arg_constants = [const for const in args if const not in arg_vars]
     is_negated = literal.negated
 
-    var_subs = list(itertools.product(H_u, repeat=len(arg_vars))) # possible substitutions of argument variables
+    var_subs = list(itertools.product(herbrand_universe, repeat=len(arg_vars))) # possible substitutions of argument variables
     df = pd.DataFrame(var_subs, columns=arg_vars)
 
     # Function to expand a row
@@ -293,7 +321,6 @@ def variable_predicate_atov(literal: Literal) -> pd.DataFrame:
                 df = pd.DataFrame(expanded_data_flat, columns=list(df.columns) + [predicate])
 
     return df
-
 
 
 def combine_literal_evaluations(literal_evaluations: List[Union[pd.DataFrame,bool]]) -> Union[pd.DataFrame,bool]:
@@ -392,18 +419,6 @@ def vtoa(head: PredicateHead, body_evaluation: Union[pd.DataFrame, bool]) -> Uni
     return pd.DataFrame(result)
 
 
-
-
-def make_hashable(value):
-    if isinstance(value, dict):
-        return frozenset((make_hashable(k), make_hashable(v)) for k, v in value.items())
-    elif isinstance(value, (list, set, tuple)):
-        return tuple(make_hashable(x) for x in value)
-    return value
-
-def hashable(row):
-    return tuple((k, make_hashable(v)) for k, v in row.items())
-
 def update_approximation(approximation: dict[str, Union[pd.DataFrame, bool]], head: PredicateHead, values: Union[pd.DataFrame, bool], approximation_to_update: str) -> bool:
     changes_made = False
     predicate = head.predicate
@@ -412,7 +427,8 @@ def update_approximation(approximation: dict[str, Union[pd.DataFrame, bool]], he
         if predicate in approximation:
             if isinstance(approximation[predicate], pd.DataFrame):
                 original_length = len(approximation[predicate])
-                approximation[predicate] = values                
+                approximation[predicate] = values
+                            
                 if len(approximation[predicate]) != original_length:
                     changes_made = True
             else:
@@ -429,94 +445,6 @@ def update_approximation(approximation: dict[str, Union[pd.DataFrame, bool]], he
                 changes_made = True
 
     return changes_made
-
-def filter_rules_without_idb_predicates(program, mode):
-    idb_predicates = {rule.head.predicate for rule in program.rules}
-    
-    filtered_rules = []
-    for rule in program.rules:
-        has_idb_predicate = any(literal.atom.predicate in idb_predicates for literal in rule.body)
-        if not has_idb_predicate:
-            filtered_rules.append(rule)
-    
-    filtered_program = Program(
-        types={f"{mode}_{k}": t for k, t in program.types.items()},
-        predicates=[f"{mode}_{p}" for p in program.predicates]
-    )
-    for r in filtered_rules:
-        filtered_program.add_rule(r)
-    
-    return filtered_program
-    
-def group_rules_by_head(rules: List[str]) -> dict[str, List[str]]:
-    rule_dict = {}
-
-    for rule in rules:
-        if rule.head.predicate not in rule_dict:
-            rule_dict[rule.head.predicate] = []
-        rule_dict[rule.head.predicate].append(rule)
-
-    return rule_dict
-
-def process_rules(program: Program, types: list, current_under_approximation: dict, current_over_approximation: dict, mode: str) -> dict:
-    while True:
-        new_tuples_produced = False
-        new_under_approximation = copy.deepcopy(current_under_approximation)
-        new_over_approximation = copy.deepcopy(current_over_approximation)
-        grouped_rules = group_rules_by_head(program.rules)
-        new_tuples_produced = False
-        for p in grouped_rules.keys():
-            head_tuples = pd.DataFrame()
-            for rule in grouped_rules[p]:
-                body = rule.body
-                literal_evaluations = []
-                for l in body:
-                    literal_evaluations.append(
-                        atov(l, types, new_under_approximation, new_over_approximation)
-                    )
-                body_evaluation = combine_literal_evaluations(literal_evaluations)
-                
-                rule_tuples = vtoa(rule.head, body_evaluation)
-                if isinstance(rule_tuples, bool):
-                    head_tuples = rule_tuples
-                else:
-                    head_tuples = pd.concat([head_tuples, rule_tuples])
-                    head_tuples['__hashable__'] = head_tuples.apply(hashable, axis=1)
-                    head_tuples = head_tuples.drop_duplicates(subset=['__hashable__']).drop(columns=['__hashable__']).reset_index(drop=True)
-    
-            if mode == 'dt':
-                if update_approximation(new_under_approximation, rule.head, head_tuples, mode):
-                    new_tuples_produced = True
-            elif mode == 'ndf':
-                if update_approximation(new_over_approximation, rule.head, head_tuples, mode):
-                    new_tuples_produced = True
-
-        if not new_tuples_produced:
-            break
-        current_under_approximation = new_under_approximation
-        current_over_approximation = new_over_approximation
-    
-    if mode == 'dt':
-        return new_under_approximation
-    else:
-        return new_over_approximation
-
-def compare_dicts_of_dataframes(dict1: dict, dict2: dict) -> bool:
-    if dict1.keys() != dict2.keys():
-        return False
-
-    for key in dict1:
-        value1 = dict1[key]
-        value2 = dict2[key]
-
-        if isinstance(value1, bool) and isinstance(value2, bool):
-            if value1 != value2:
-                return False
-        elif isinstance(value1, pd.DataFrame) and isinstance(value2, pd.DataFrame):
-            if not value1.equals(value2):
-                return False
-            
-    return True
 
 
 def handle_query(query):
