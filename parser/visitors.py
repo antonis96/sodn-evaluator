@@ -74,7 +74,7 @@ class SODNBuilder(SODNListener):
         value = arg_ctx.getText()
         if value in self.predicates:
             arg_type = 'predicate_const'
-        elif value.islower():
+        elif value.islower() or value.isnumeric():
             arg_type = "data_const"
         else:
             arg_type = "variable"

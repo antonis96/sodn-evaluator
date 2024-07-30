@@ -8,7 +8,7 @@ from itertools import product
 from .helpers import *
 
 
-def extract_herbrand_univse(program: Program) -> set:
+def extract_herbrand_universe(program: Program) -> set:
     herbrand_universe = set()
     for f in program.facts:
         herbrand_universe.update(set(f.head.args))
@@ -24,6 +24,8 @@ def extract_herbrand_univse(program: Program) -> set:
                 if arg.value.islower() and arg.value not in program.predicates:
                  non_predicate_body_args.add(arg.value)
         herbrand_universe.update(non_predicate_body_args)
+    if herbrand_universe == set():
+        return {'c'}
     return {str(element) for element in herbrand_universe}
 
 def initialize_over_approximation(program: Program, predicate: str, herbrand_universe: set) -> pd.DataFrame:
@@ -64,62 +66,115 @@ def evaluate_facts(program: Program, under_approximation: dict) -> dict:
 
     return under_approximation
 
-def process_rules(program: Program, types: list, current_under_approximation: dict, current_over_approximation: dict, mode: str, herbrand_universe) -> dict:
-    
-    grouped_rules = group_rules_by_head(program.rules)
 
-    predicate_tuples = {
-        predicate: pd.DataFrame()
-        for predicate in program.predicates
-    }
-   
-    for i in range(0,10):
-        new_tuples_produced = False
-        new_under_approximation = copy.deepcopy(current_under_approximation)
-        new_over_approximation = copy.deepcopy(current_over_approximation)
+def evaluate_rule(rule: Rule, types:list, current_under_approximation: dict, current_over_approximation: dict, herbrand_universe):
+    literal_evaluations = []
+    for l in rule.body:
+        literal_evaluations.append(
+            atov(l, types, current_under_approximation, current_over_approximation, herbrand_universe)
+        )
+    body_evaluation = combine_literal_evaluations(literal_evaluations)
+    new_tuples = vtoa(rule.head, body_evaluation)
+    return new_tuples
+
+
+def evaluate_rule_union(rules: List[Rule], types: list, current_under_approximation: dict, current_over_approximation: dict, herbrand_universe) -> Union[pd.DataFrame,bool]:
+
+    combined = None
+
+    for rule in rules:
+        new_tuples = evaluate_rule(rule, types, current_under_approximation, current_over_approximation, herbrand_universe)
+        if isinstance(new_tuples, pd.DataFrame):
+            if combined is None:
+                combined = pd.DataFrame()
+            combined = pd.concat([combined, new_tuples])
+            combined['__hashable__'] = combined.apply(hashable, axis=1)
+            combined = combined.drop_duplicates(subset=['__hashable__']).drop(columns=['__hashable__']).reset_index(drop=True)
+        elif isinstance(new_tuples, bool):
+            combined = combined or new_tuples
+    return combined
+
+
+def evaluate_tp(program: Program, types: list, current_under_approximation: dict, current_over_approximation: dict, herbrand_universe: set, mode: str) -> dict[str, pd.DataFrame]:
+    grouped_rules = group_rules_by_head(program.rules)
+    new_approximation = current_under_approximation if mode == 'dt' else current_over_approximation
+
+    iteration = 0
+    stable = False
+
+    while not stable:
+        stable = True
+        iteration += 1
+        previous_approximation = copy.deepcopy(new_approximation)
 
         for p in grouped_rules.keys():
-            head_tuples = predicate_tuples[p]
+            rules = grouped_rules[p]
+            rule_tuples = evaluate_rule_union(rules, types, current_under_approximation, current_over_approximation, herbrand_universe)
 
-            for rule in grouped_rules[p]:
-                body = rule.body
-                literal_evaluations = []
-                for l in body:
-                    literal_evaluations.append(
-                        atov(l, types, new_under_approximation, new_over_approximation, herbrand_universe)
-                    )
-                
-                body_evaluation = combine_literal_evaluations(literal_evaluations)
-                
-                rule_tuples = vtoa(rule.head, body_evaluation)
-
-                if isinstance(rule_tuples, bool):
-                    head_tuples = rule_tuples
+            if isinstance(rule_tuples,pd.DataFrame):
+                if iteration == 1:
+                    new_approximation[p] = rule_tuples ##### + FACTS HERE
                 else:
-                    head_tuples = pd.concat([head_tuples, rule_tuples])
-                    head_tuples['__hashable__'] = head_tuples.apply(hashable, axis=1)
-                    head_tuples = head_tuples.drop_duplicates(subset=['__hashable__']).drop(columns=['__hashable__']).reset_index(drop=True)
-        
-        predicate_tuples[p] = pd.concat([predicate_tuples[p], head_tuples])
-            
-            # if mode == 'dt':
-            #     if update_approximation(new_under_approximation, rule.hepredicate_tuplesad, [p], mode):
-            #         new_tuples_produced = True
-            # elif mode == 'ndf':
-            #     if update_approximation(new_over_approximation, rule.head, predicate_tuples[p], mode):
-            #         new_tuples_produced = True
+                    new_approximation[p] = pd.concat([new_approximation[p], rule_tuples])
+                    new_approximation[p]['__hashable__'] = new_approximation[p].apply(hashable, axis=1)
+                    new_approximation[p] = new_approximation[p].drop_duplicates(subset=['__hashable__']).drop(columns=['__hashable__']).reset_index(drop=True)
+            else:
+                new_approximation[p] = rule_tuples
+        if mode == 'dt':
+            current_under_approximation = copy.deepcopy(new_approximation)
+        else:
+            current_over_approximation = copy.deepcopy(new_approximation)
 
-        # if not new_tuples_produced:
-        #     break
-        
+        # Check if the new approximation is stable
+        for p in grouped_rules.keys():
+            if isinstance(new_approximation[p], pd.DataFrame):
+                if not new_approximation[p].equals(previous_approximation[p]):
+                    stable = False
+                    break
+            else:
+                if new_approximation[p] != previous_approximation[p]:
+                    stable = False
+                    break
+    return new_approximation
+
+def evaluate_alternating_fp(dt_program: Program, ndf_program: Program, types: list, current_under_approximation: dict, current_over_approximation: dict, herbrand_universe: set) -> dict[str, pd.DataFrame]:
+    stable = False
+
+    while not stable:
+        stable = True
+        previous_under_approximation = copy.deepcopy(current_under_approximation)
+        previous_over_approximation = copy.deepcopy(current_over_approximation)
+
+        new_under_approximation = evaluate_tp(dt_program, types, current_under_approximation, current_over_approximation, herbrand_universe, mode='dt')
+        new_over_approximation = evaluate_tp(ndf_program, types, current_under_approximation, current_over_approximation, herbrand_universe, mode='ndf')
 
         current_under_approximation = copy.deepcopy(new_under_approximation)
         current_over_approximation = copy.deepcopy(new_over_approximation)
-    print_approximation(predicate_tuples)
-    if mode == 'dt':
-        return new_under_approximation
-    else:
-        return new_over_approximation
+
+        for key in current_under_approximation.keys():
+            if isinstance(new_under_approximation[key], pd.DataFrame):
+                if not new_under_approximation[key].equals(previous_under_approximation[key]):
+                    stable = False
+                    break
+            else:
+                if new_under_approximation[key] != previous_under_approximation[key]:
+                    stable = False
+                    break
+
+        if stable:
+            for key in current_over_approximation.keys():
+                if isinstance(new_over_approximation[key], pd.DataFrame):
+                    if not new_over_approximation[key].equals(previous_over_approximation[key]):
+                        stable = False
+                        break
+                else:
+                    if new_over_approximation[key] != previous_over_approximation[key]:
+                        stable = False
+                        break
+
+
+    return current_under_approximation, current_over_approximation
+
 
 
 def atov(literal: Literal, types:dict, under_approximation: dict, over_approximation: dict, herbrand_universe) -> pd.DataFrame:
@@ -204,7 +259,6 @@ def match(a: tuple, b:tuple, under_approximation: dict, over_approximation: dict
                 return {}, False
     return sub, True
 
-# TODO add types
 def get_false_combinations(df, predicate_type, herbrand_universe):
     if df.empty:
         c = cartesian_product([
@@ -419,7 +473,7 @@ def vtoa(head: PredicateHead, body_evaluation: Union[pd.DataFrame, bool]) -> Uni
     return pd.DataFrame(result)
 
 
-def update_approximation(approximation: dict[str, Union[pd.DataFrame, bool]], head: PredicateHead, values: Union[pd.DataFrame, bool], approximation_to_update: str) -> bool:
+def update_approximation(approximation: dict[str, Union[pd.DataFrame, bool]], head: PredicateHead, values: Union[pd.DataFrame, bool]) -> bool:
     changes_made = False
     predicate = head.predicate
     
