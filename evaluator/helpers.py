@@ -4,7 +4,6 @@ import pandas as pd
 import itertools
 
 
-
 def cartesian_product(elements):
     products = list(itertools.product(*elements))
     return products
@@ -49,23 +48,6 @@ def make_hashable(value):
 def hashable(row):
     return tuple((k, make_hashable(v)) for k, v in row.items())
 
-def filter_rules_without_idb_predicates(program, mode):
-    idb_predicates = {rule.head.predicate for rule in program.rules}
-    
-    filtered_rules = []
-    for rule in program.rules:
-        has_idb_predicate = any(literal.atom.predicate in idb_predicates for literal in rule.body)
-        if not has_idb_predicate:
-            filtered_rules.append(rule)
-    
-    filtered_program = Program(
-        types={f"{mode}_{k}": t for k, t in program.types.items()},
-        predicates=[f"{mode}_{p}" for p in program.predicates]
-    )
-    for r in filtered_rules:
-        filtered_program.add_rule(r)
-    
-    return filtered_program
     
 def group_rules_by_head(rules: List[str]) -> dict[str, List[str]]:
     rule_dict = {}
@@ -76,22 +58,4 @@ def group_rules_by_head(rules: List[str]) -> dict[str, List[str]]:
         rule_dict[rule.head.predicate].append(rule)
 
     return rule_dict
-
-
-def compare_dicts_of_dataframes(dict1: dict, dict2: dict) -> bool:
-    if dict1.keys() != dict2.keys():
-        return False
-
-    for key in dict1:
-        value1 = dict1[key]
-        value2 = dict2[key]
-
-        if isinstance(value1, bool) and isinstance(value2, bool):
-            if value1 != value2:
-                return False
-        elif isinstance(value1, pd.DataFrame) and isinstance(value2, pd.DataFrame):
-            if not value1.equals(value2):
-                return False
-            
-    return True
 

@@ -1,17 +1,14 @@
-import copy
 import argparse
 from parser.parse import parse
 from evaluator.double_program import transform_program
 from evaluator.utils import (
     initialize_over_approximation,
     initialize_under_approximation, 
-    evaluate_facts, 
-    evaluate_tp,
+    evaluate_facts,
     print_approximation,
     extract_herbrand_universe,
-    evaluate_alternating_fp,
-    filter_rules_without_idb_predicates
 )
+from evaluator.evaluate_fixpoints import evaluate_alternating_fp
 
 def main():
     parser = argparse.ArgumentParser(description='Datalog Program Parser')
@@ -40,23 +37,11 @@ def main():
 
     current_under_approximation = evaluate_facts(dt_program,current_under_approximation)
     current_over_approximation = evaluate_facts(ndf_program,current_over_approximation)
-    filtered_dt_program = filter_rules_without_idb_predicates(dt_program,'dt')
-    filtered_ndf_program = filter_rules_without_idb_predicates(ndf_program,'ndf')
 
     
-    a,b = evaluate_alternating_fp(dt_program, ndf_program, types, current_under_approximation, current_over_approximation, herbrand_universe)
-    print_approximation(a)
-    print_approximation(b)
-    # while True:
-    #     question = input("?-  ")
-        
-    #     if question.lower() == 'exit':
-    #         print("Exiting.")
-    #         break
-        
-    #     answer = handle_query(question)
-    #     print("Answer:", answer)
-
+    dt, ndf = evaluate_alternating_fp(dt_program, ndf_program, types, current_under_approximation, current_over_approximation, herbrand_universe)
+    print_approximation(dt)
+    print_approximation(ndf)
 
 if __name__ == "__main__":
     main()

@@ -2,12 +2,22 @@ from typing import *
 from components import *
 
 
-def add_prefixed_fact(program: Program, prefix: str, fact: Fact) -> None:
+def add_prefixed_fact(
+        program: Program, 
+        prefix: str, 
+        fact: Fact
+) -> None:
+
     predicate = f"{prefix}_{fact.head.predicate}"
     new_fact = Fact(PredicateHead(predicate, fact.head.args))
     program.add_fact(new_fact)
 
-def transform_rule(rule: Rule, dt_program: Program, ndf_program: Program) -> None:
+def transform_rule(
+        rule: Rule, 
+        dt_program: Program, 
+        ndf_program: Program
+) -> None:
+
     head = rule.head
     body = rule.body
     
