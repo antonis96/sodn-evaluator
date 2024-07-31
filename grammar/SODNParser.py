@@ -10,32 +10,33 @@ else:
 
 def serializedATN():
     return [
-        4,1,11,87,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,2,5,7,5,2,6,7,
+        4,1,12,88,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,2,5,7,5,2,6,7,
         6,2,7,7,7,2,8,7,8,2,9,7,9,2,10,7,10,2,11,7,11,1,0,1,0,4,0,27,8,0,
         11,0,12,0,28,1,1,1,1,1,1,1,1,1,1,1,2,1,2,1,2,1,3,1,3,1,3,1,3,1,3,
         1,3,3,3,45,8,3,1,4,1,4,1,4,5,4,50,8,4,10,4,12,4,53,9,4,1,5,1,5,1,
         5,3,5,58,8,5,1,6,1,6,1,6,1,6,1,6,1,6,3,6,66,8,6,1,7,1,7,1,7,5,7,
-        71,8,7,10,7,12,7,74,9,7,1,8,1,8,1,8,3,8,79,8,8,1,9,1,9,1,10,1,10,
-        1,11,1,11,1,11,0,0,12,0,2,4,6,8,10,12,14,16,18,20,22,0,2,2,0,2,2,
-        4,4,1,0,2,3,83,0,26,1,0,0,0,2,30,1,0,0,0,4,35,1,0,0,0,6,44,1,0,0,
-        0,8,46,1,0,0,0,10,57,1,0,0,0,12,65,1,0,0,0,14,67,1,0,0,0,16,78,1,
-        0,0,0,18,80,1,0,0,0,20,82,1,0,0,0,22,84,1,0,0,0,24,27,3,2,1,0,25,
-        27,3,4,2,0,26,24,1,0,0,0,26,25,1,0,0,0,27,28,1,0,0,0,28,26,1,0,0,
-        0,28,29,1,0,0,0,29,1,1,0,0,0,30,31,3,6,3,0,31,32,5,6,0,0,32,33,3,
-        8,4,0,33,34,5,7,0,0,34,3,1,0,0,0,35,36,3,6,3,0,36,37,5,7,0,0,37,
-        5,1,0,0,0,38,39,3,22,11,0,39,40,5,9,0,0,40,41,3,14,7,0,41,42,5,10,
-        0,0,42,45,1,0,0,0,43,45,3,22,11,0,44,38,1,0,0,0,44,43,1,0,0,0,45,
-        7,1,0,0,0,46,51,3,10,5,0,47,48,5,8,0,0,48,50,3,10,5,0,49,47,1,0,
-        0,0,50,53,1,0,0,0,51,49,1,0,0,0,51,52,1,0,0,0,52,9,1,0,0,0,53,51,
-        1,0,0,0,54,55,5,1,0,0,55,58,3,12,6,0,56,58,3,12,6,0,57,54,1,0,0,
-        0,57,56,1,0,0,0,58,11,1,0,0,0,59,60,3,22,11,0,60,61,5,9,0,0,61,62,
-        3,14,7,0,62,63,5,10,0,0,63,66,1,0,0,0,64,66,3,22,11,0,65,59,1,0,
-        0,0,65,64,1,0,0,0,66,13,1,0,0,0,67,72,3,16,8,0,68,69,5,8,0,0,69,
-        71,3,16,8,0,70,68,1,0,0,0,71,74,1,0,0,0,72,70,1,0,0,0,72,73,1,0,
-        0,0,73,15,1,0,0,0,74,72,1,0,0,0,75,79,5,5,0,0,76,79,3,20,10,0,77,
-        79,3,18,9,0,78,75,1,0,0,0,78,76,1,0,0,0,78,77,1,0,0,0,79,17,1,0,
-        0,0,80,81,5,3,0,0,81,19,1,0,0,0,82,83,7,0,0,0,83,21,1,0,0,0,84,85,
-        7,1,0,0,85,23,1,0,0,0,8,26,28,44,51,57,65,72,78
+        71,8,7,10,7,12,7,74,9,7,1,8,1,8,1,8,1,8,3,8,80,8,8,1,9,1,9,1,10,
+        1,10,1,11,1,11,1,11,0,0,12,0,2,4,6,8,10,12,14,16,18,20,22,0,2,2,
+        0,2,2,4,4,1,0,2,3,85,0,26,1,0,0,0,2,30,1,0,0,0,4,35,1,0,0,0,6,44,
+        1,0,0,0,8,46,1,0,0,0,10,57,1,0,0,0,12,65,1,0,0,0,14,67,1,0,0,0,16,
+        79,1,0,0,0,18,81,1,0,0,0,20,83,1,0,0,0,22,85,1,0,0,0,24,27,3,2,1,
+        0,25,27,3,4,2,0,26,24,1,0,0,0,26,25,1,0,0,0,27,28,1,0,0,0,28,26,
+        1,0,0,0,28,29,1,0,0,0,29,1,1,0,0,0,30,31,3,6,3,0,31,32,5,7,0,0,32,
+        33,3,8,4,0,33,34,5,8,0,0,34,3,1,0,0,0,35,36,3,6,3,0,36,37,5,8,0,
+        0,37,5,1,0,0,0,38,39,3,22,11,0,39,40,5,10,0,0,40,41,3,14,7,0,41,
+        42,5,11,0,0,42,45,1,0,0,0,43,45,3,22,11,0,44,38,1,0,0,0,44,43,1,
+        0,0,0,45,7,1,0,0,0,46,51,3,10,5,0,47,48,5,9,0,0,48,50,3,10,5,0,49,
+        47,1,0,0,0,50,53,1,0,0,0,51,49,1,0,0,0,51,52,1,0,0,0,52,9,1,0,0,
+        0,53,51,1,0,0,0,54,55,5,1,0,0,55,58,3,12,6,0,56,58,3,12,6,0,57,54,
+        1,0,0,0,57,56,1,0,0,0,58,11,1,0,0,0,59,60,3,22,11,0,60,61,5,10,0,
+        0,61,62,3,14,7,0,62,63,5,11,0,0,63,66,1,0,0,0,64,66,3,22,11,0,65,
+        59,1,0,0,0,65,64,1,0,0,0,66,13,1,0,0,0,67,72,3,16,8,0,68,69,5,9,
+        0,0,69,71,3,16,8,0,70,68,1,0,0,0,71,74,1,0,0,0,72,70,1,0,0,0,72,
+        73,1,0,0,0,73,15,1,0,0,0,74,72,1,0,0,0,75,80,5,5,0,0,76,80,5,6,0,
+        0,77,80,3,20,10,0,78,80,3,18,9,0,79,75,1,0,0,0,79,76,1,0,0,0,79,
+        77,1,0,0,0,79,78,1,0,0,0,80,17,1,0,0,0,81,82,5,3,0,0,82,19,1,0,0,
+        0,83,84,7,0,0,0,84,21,1,0,0,0,85,86,7,1,0,0,86,23,1,0,0,0,8,26,28,
+        44,51,57,65,72,79
     ]
 
 class SODNParser ( Parser ):
@@ -49,10 +50,11 @@ class SODNParser ( Parser ):
     sharedContextCache = PredictionContextCache()
 
     literalNames = [ "<INVALID>", "'not'", "<INVALID>", "<INVALID>", "<INVALID>", 
-                     "<INVALID>", "':-'", "'.'", "','", "'('", "')'" ]
+                     "<INVALID>", "<INVALID>", "':-'", "'.'", "','", "'('", 
+                     "')'" ]
 
     symbolicNames = [ "<INVALID>", "<INVALID>", "PREDICATE_VAR", "PREDICATE_CONST", 
-                      "INDIVIDUAL_VAR", "INDIVIDUAL_CONST", "LEFT_ARROW", 
+                      "INDIVIDUAL_VAR", "INDIVIDUAL_CONST", "NUMBER", "LEFT_ARROW", 
                       "PERIOD", "COMMA", "LPAREN", "RPAREN", "WS" ]
 
     RULE_program = 0
@@ -78,12 +80,13 @@ class SODNParser ( Parser ):
     PREDICATE_CONST=3
     INDIVIDUAL_VAR=4
     INDIVIDUAL_CONST=5
-    LEFT_ARROW=6
-    PERIOD=7
-    COMMA=8
-    LPAREN=9
-    RPAREN=10
-    WS=11
+    NUMBER=6
+    LEFT_ARROW=7
+    PERIOD=8
+    COMMA=9
+    LPAREN=10
+    RPAREN=11
+    WS=12
 
     def __init__(self, input:TokenStream, output:TextIO = sys.stdout):
         super().__init__(input, output)
@@ -391,7 +394,7 @@ class SODNParser ( Parser ):
             self.state = 51
             self._errHandler.sync(self)
             _la = self._input.LA(1)
-            while _la==8:
+            while _la==9:
                 self.state = 47
                 self.match(SODNParser.COMMA)
                 self.state = 48
@@ -583,7 +586,7 @@ class SODNParser ( Parser ):
             self.state = 72
             self._errHandler.sync(self)
             _la = self._input.LA(1)
-            while _la==8:
+            while _la==9:
                 self.state = 68
                 self.match(SODNParser.COMMA)
                 self.state = 69
@@ -610,6 +613,9 @@ class SODNParser ( Parser ):
 
         def INDIVIDUAL_CONST(self):
             return self.getToken(SODNParser.INDIVIDUAL_CONST, 0)
+
+        def NUMBER(self):
+            return self.getToken(SODNParser.NUMBER, 0)
 
         def variable(self):
             return self.getTypedRuleContext(SODNParser.VariableContext,0)
@@ -638,7 +644,7 @@ class SODNParser ( Parser ):
         localctx = SODNParser.ArgContext(self, self._ctx, self.state)
         self.enterRule(localctx, 16, self.RULE_arg)
         try:
-            self.state = 78
+            self.state = 79
             self._errHandler.sync(self)
             token = self._input.LA(1)
             if token in [5]:
@@ -646,14 +652,19 @@ class SODNParser ( Parser ):
                 self.state = 75
                 self.match(SODNParser.INDIVIDUAL_CONST)
                 pass
-            elif token in [2, 4]:
+            elif token in [6]:
                 self.enterOuterAlt(localctx, 2)
                 self.state = 76
+                self.match(SODNParser.NUMBER)
+                pass
+            elif token in [2, 4]:
+                self.enterOuterAlt(localctx, 3)
+                self.state = 77
                 self.variable()
                 pass
             elif token in [3]:
-                self.enterOuterAlt(localctx, 3)
-                self.state = 77
+                self.enterOuterAlt(localctx, 4)
+                self.state = 78
                 self.predicate_const()
                 pass
             else:
@@ -698,7 +709,7 @@ class SODNParser ( Parser ):
         self.enterRule(localctx, 18, self.RULE_predicate_const)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 80
+            self.state = 81
             self.match(SODNParser.PREDICATE_CONST)
         except RecognitionException as re:
             localctx.exception = re
@@ -743,7 +754,7 @@ class SODNParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 82
+            self.state = 83
             _la = self._input.LA(1)
             if not(_la==2 or _la==4):
                 self._errHandler.recoverInline(self)
@@ -793,7 +804,7 @@ class SODNParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 84
+            self.state = 85
             _la = self._input.LA(1)
             if not(_la==2 or _la==3):
                 self._errHandler.recoverInline(self)

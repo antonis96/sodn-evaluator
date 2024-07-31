@@ -37,7 +37,7 @@ predicate       : PREDICATE_CONST
 // Lexer rules
 
 PREDICATE_VAR   : [A-Z] ;
-PREDICATE_CONST : [a-z]+ ;
+PREDICATE_CONST : [a-z] [a-z0-9_]* ;
 INDIVIDUAL_VAR  : [A-Z] ;
 INDIVIDUAL_CONST: [a-z] ;
 NUMBER          : [0-9]+ ;
