@@ -35,7 +35,10 @@ def evaluate_tp(
                     for fact in program.facts:
                         if fact.head.predicate == p:
                             fact_tuples.append(tuple([str(arg) for arg in fact.head.args]))
-                    new_approximation[p] = pd.concat([rule_tuples,pd.DataFrame(fact_tuples)]).drop_duplicates() ##### + FACTS HERE
+                    if fact_tuples:
+                        new_approximation[p] = pd.concat([rule_tuples,pd.DataFrame(fact_tuples)]).drop_duplicates()
+                    else:
+                        new_approximation[p] = rule_tuples
                 else:
                     new_approximation[p] = pd.concat([new_approximation[p], rule_tuples])
                     new_approximation[p]['__hashable__'] = new_approximation[p].apply(hashable, axis=1)

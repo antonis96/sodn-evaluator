@@ -8,14 +8,18 @@ def cartesian_product(elements):
     products = list(itertools.product(*elements))
     return products
 
-def print_approximation(approximation: dict):
+
+def get_approximation_string(approximation: dict) -> str:
+    result = []
     for key, value in approximation.items():
-        print(f"Predicate: {key}\n")
+        result.append(f"Predicate: {key}\n")
         if isinstance(value, pd.DataFrame):
-            print(value.to_string(index=False, header=False))
+            result.append(value.to_string(index=False, header=False))
         elif isinstance(value, bool):
-            print(value)
-        print("\n" + "="*40 + "\n")
+            result.append(str(value))
+        result.append("\n" + "="*40 + "\n")
+    return "\n".join(result)
+
 
 def gather_all_keys(dicts):
     """Collect all unique keys from a list of dictionaries."""
