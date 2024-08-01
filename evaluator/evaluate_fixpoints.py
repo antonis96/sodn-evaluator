@@ -53,7 +53,7 @@ def evaluate_tp(
         # Check if the new approximation is stable
         for p in grouped_rules.keys():
             if isinstance(new_approximation[p], pd.DataFrame):
-                if not new_approximation[p].equals(previous_approximation[p]):
+                if len(new_approximation[p]) != len(previous_approximation[p]):
                     stable = False
                     break
             else:
@@ -86,7 +86,7 @@ def evaluate_alternating_fp(
 
         for key in current_under_approximation.keys():
             if isinstance(new_under_approximation[key], pd.DataFrame):
-                if not new_under_approximation[key].equals(previous_under_approximation[key]):
+                if len(new_under_approximation[key]) != len(previous_under_approximation[key]):
                     stable = False
                     break
             else:
@@ -97,7 +97,7 @@ def evaluate_alternating_fp(
         if stable:
             for key in current_over_approximation.keys():
                 if isinstance(new_over_approximation[key], pd.DataFrame):
-                    if not new_over_approximation[key].equals(previous_over_approximation[key]):
+                    if len(new_over_approximation[key]) != len(previous_over_approximation[key]):
                         stable = False
                         break
                 else:
