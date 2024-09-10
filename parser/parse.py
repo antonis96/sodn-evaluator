@@ -56,7 +56,7 @@ def parse(program_text):
 
     type_collector = TypeCollector(predicate_collector.predicates)
     try:
-        for _ in range(0, 3):
+        for _ in range(0, 10):
             walker.walk(type_collector, tree)
             type_collector.update_types()
     except Exception as e:

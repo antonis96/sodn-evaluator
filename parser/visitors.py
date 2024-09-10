@@ -138,7 +138,7 @@ class TypeCollector(SODNListener):
                     if body_predicate[0].isupper():
                         return 'i'
                     arg_index = body_args.index(arg_name)
-                    if self.types[body_predicate] == [None]:
+                    if self.types[body_predicate] == [None]*(len(body_args)-1):
                         return None  # Defer type assignment
                     else:
                         return self.types[body_predicate][arg_index]

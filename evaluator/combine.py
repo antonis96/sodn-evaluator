@@ -7,7 +7,6 @@ from .helpers import *
 def combine_literal_evaluations(
         literal_evaluations: List[Union[pd.DataFrame,bool]]
 ) -> Union[pd.DataFrame,bool]:
-
     if not literal_evaluations:
         return pd.DataFrame()  # Return an empty dataframe if the list is empty
 
