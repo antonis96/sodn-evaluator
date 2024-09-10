@@ -63,7 +63,7 @@ def constant_predicate_atov(
     if not is_negated:
         return matched_df
     else:
-        false_df = get_false_combinations(matched_df,atom_type, herbrand_universe)
+        false_df = get_false_combinations(matched_df,atom_type, atom.args, vars, herbrand_universe)
         return false_df
 
 def match(
@@ -104,15 +104,21 @@ def match(
                 return {}, False
     return sub, True
 
-def get_false_combinations(df, predicate_type, herbrand_universe):
+def get_false_combinations(df, predicate_type, args, vars, herbrand_universe):
     if df.empty:
+        # Filter predicate_type based on whether its corresponding arg is in vars
+        filtered_predicate_type = [
+            element for element, arg in zip(predicate_type, args) if str(arg) in vars
+        ]
+        
         c = cartesian_product([
-                herbrand_universe if not isinstance(element, list) else [
+            herbrand_universe if not isinstance(element, list) else [
                 {r: value} for r in list(itertools.combinations_with_replacement(herbrand_universe, len(element)))
                 for value in ['0', '1/2', '1']
-            ] for element in predicate_type
-        ]) 
-        return pd.DataFrame(c,columns=df.columns)
+            ] for element in filtered_predicate_type
+        ])
+
+        return pd.DataFrame(c, columns=df.columns)
     
 
     dict_columns = [col for col in df.columns if isinstance(df[col].dropna().iloc[0], dict)]
