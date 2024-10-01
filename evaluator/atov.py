@@ -63,7 +63,11 @@ def constant_predicate_atov(
     if not is_negated:
         return matched_df
     else:
-        false_df = get_false_combinations(matched_df,atom_type, atom.args, vars, herbrand_universe)
+        if predicate.startswith('dt_'):
+            mode = 'dt'
+        else:
+            mode = 'ndf'
+        false_df = get_false_combinations(matched_df,atom_type, atom.args, vars, herbrand_universe, mode)#get_false_combinations(matched_df, herbrand_universe, mode)
         return false_df
 
 def match(
@@ -104,54 +108,8 @@ def match(
                 return {}, False
     return sub, True
 
-def get_false_combinations(df, predicate_type, args, vars, herbrand_universe):
-    if df.empty:
-        # Filter predicate_type based on whether its corresponding arg is in vars
-        filtered_predicate_type = [
-            element for element, arg in zip(predicate_type, args) if str(arg) in vars
-        ]
-        
-        c = cartesian_product([
-            herbrand_universe if not isinstance(element, list) else [
-                {r: value} for r in list(itertools.combinations_with_replacement(herbrand_universe, len(element)))
-                for value in ['0', '1/2', '1']
-            ] for element in filtered_predicate_type
-        ])
-
-        return pd.DataFrame(c, columns=df.columns)
-    
-
-    dict_columns = [col for col in df.columns if isinstance(df[col].dropna().iloc[0], dict)]
-    plain_columns = [col for col in df.columns if col not in dict_columns]
-
-    # Handling dictionary columns
-    dict_combinations = []
-    for col in dict_columns:
-        all_combos = []
-        all_keys = gather_all_keys(df[col].dropna().tolist())
-        all_combos.extend(generate_dict_combinations(all_keys, ['0', '1', '1/2']))
-        for entry in df[col].dropna():
-
-            all_combos = remove_rows_with_k(all_combos, entry)
-
-        unique_combos = pd.DataFrame(all_combos).drop_duplicates().to_dict('records')
-        dict_combinations.append(unique_combos)
-
-
-    all_combinations = list(itertools.product(*([ herbrand_universe for col in plain_columns] + dict_combinations)))
-
-    new_rows = pd.DataFrame(all_combinations, columns=plain_columns + dict_columns)
-    df_hashable = df.apply(hashable, axis=1)
-    new_rows_hashable = new_rows.apply(hashable, axis=1)
-
-    # Filter new rows to include only those not present in original df
-    unique_new_rows = new_rows[~new_rows_hashable.isin(df_hashable)]
-
-    for col in dict_columns:
-        unique_new_rows.loc[:, col] = unique_new_rows[col].apply(remove_nan_keys)
-
-    return unique_new_rows.reset_index(drop=True)
-
+def get_false_combinations(df, predicate_type, args, vars, herbrand_universe, mode):
+    return generate_variants_for_dataframe(df, predicate_type, args, vars, herbrand_universe, mode)
 
 def variable_predicate_atov(
     literal: Literal, 

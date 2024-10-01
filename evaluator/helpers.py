@@ -63,3 +63,94 @@ def group_rules_by_head(rules: List[str]) -> dict[str, List[str]]:
 
     return rule_dict
 
+
+
+# Function to get all possible combinations of replacing keys in a dictionary
+def replace_dict_values(d, mode):
+    keys = list(d.keys())
+    dict_variants = []
+    # Loop through each possible combination of key replacements (1 key, 2 keys, ..., n keys)
+    for r in range(1, len(keys) + 1):
+        for key_subset in itertools.combinations(keys, r):
+            # Generate different versions of new_dict for each key
+            new_dict_options = [d.copy()]
+            for key in key_subset:
+                if d[key] == '1':
+                    # Create new variants for '0' and '1/2'
+                    new_variants = []
+                    for variant in new_dict_options:
+                        variant_0 = variant.copy()
+                        variant_0[key] = '0'
+                        variant_half = variant.copy()
+                        variant_half[key] = '1/2'
+                        if mode == 'dt':
+                            new_variants.extend([variant_0, variant_half])
+                        else:
+                            new_variants.extend([variant_0])
+                    new_dict_options = new_variants
+                elif d[key] == '0':
+                    # Create new variants for '1' and '1/2'
+                    new_variants = []
+                    for variant in new_dict_options:
+                        variant_1 = variant.copy()
+                        variant_1[key] = '1'
+                        variant_half = variant.copy()
+                        variant_half[key] = '1/2'
+                        if mode == 'dt':
+                            new_variants.extend([variant_1, variant_half])
+                        else:
+                            new_variants.extend([variant_1])
+                    new_dict_options = new_variants
+                elif d[key] == '1/2':
+                    # If value is already '1/2', keep it unchanged
+                    continue
+            
+            dict_variants.extend(new_dict_options)
+    
+    return dict_variants
+
+# Function to get all possible string replacements
+def replace_string_values(value, possible_values):
+    return [v for v in possible_values if v != value]
+
+# Function to determine how to generate variants based on the type of the value
+def get_variants(value, herbrand_universe, mode):
+    if isinstance(value, dict):
+        return replace_dict_values(value, mode)
+    elif isinstance(value, str):
+        return replace_string_values(value, herbrand_universe)
+
+def generate_variants_for_dataframe(df, predicate_type, args, vars, herbrand_universe, mode):
+    if df.empty:
+        # Filter predicate_type based on whether its corresponding arg is in vars
+        filtered_predicate_type = [
+            element for element, arg in zip(predicate_type, args) if str(arg) in vars
+        ]
+        
+        c = cartesian_product([
+            herbrand_universe if not isinstance(element, list) else [
+                {r: value} for r in list(itertools.combinations_with_replacement(herbrand_universe, len(element)))
+                for value in ['0', '1/2', '1']
+            ] for element in filtered_predicate_type
+        ])
+
+        return pd.DataFrame(c, columns=df.columns)
+    
+    all_variants = []
+    initial_rows = df.to_dict(orient='records')  # Convert the original dataframe to a list of dicts (rows)
+    
+    for _, row in df.iterrows():
+        column_variants = []
+        
+        # Generate variants for each column value
+        for col in df.columns:
+            variants = get_variants(row[col], herbrand_universe, mode)
+            column_variants.append(variants)
+        
+        # Create all combinations of the variants across columns
+        for variant_combination in itertools.product(*column_variants):
+            variant_row = {col: variant_combination[i] for i, col in enumerate(df.columns)}
+            if variant_row not in initial_rows:
+            # Only add if the new row is not in the original dataframe
+                all_variants.append(variant_row)
+    return pd.DataFrame(all_variants)
