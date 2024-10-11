@@ -25,21 +25,8 @@ def extract_herbrand_universe(program: Program) -> set:
         return {'c'}
     return {str(element) for element in herbrand_universe}
 
-def initialize_over_approximation(program: Program, predicate: str, herbrand_universe: set) -> pd.DataFrame:
-    predicate_type = program.types[predicate]
-    if predicate_type == 'o':
-        return True
-    else:  # if it is a list
-        c = cartesian_product([
-                herbrand_universe if not isinstance(element, list) else [
-                {r: value} for r in list(itertools.combinations_with_replacement(herbrand_universe, len(element)))
-                for value in ['0', '1/2', '1']
-            ] for element in predicate_type
-        ]) 
-        df = pd.DataFrame(c)
-        return df
     
-def initialize_under_approximation(program: Program, predicate: str) -> pd.DataFrame:
+def initialize_approximation(program: Program, predicate: str) -> pd.DataFrame:
     predicate_type = program.types[predicate]
     if predicate_type == 'o':
         return False

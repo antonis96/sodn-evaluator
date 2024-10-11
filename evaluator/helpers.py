@@ -76,34 +76,21 @@ def replace_dict_values(d, mode):
             new_dict_options = [d.copy()]
             for key in key_subset:
                 if d[key] == '1':
-                    # Create new variants for '0' and '1/2'
+                    # Create new variants for '0'
                     new_variants = []
                     for variant in new_dict_options:
                         variant_0 = variant.copy()
                         variant_0[key] = '0'
-                        variant_half = variant.copy()
-                        variant_half[key] = '1/2'
-                        if mode == 'dt':
-                            new_variants.extend([variant_0, variant_half])
-                        else:
-                            new_variants.extend([variant_0])
+                        new_variants.extend([variant_0])
                     new_dict_options = new_variants
                 elif d[key] == '0':
-                    # Create new variants for '1' and '1/2'
+                    # Create new variants for '1'
                     new_variants = []
                     for variant in new_dict_options:
                         variant_1 = variant.copy()
                         variant_1[key] = '1'
-                        variant_half = variant.copy()
-                        variant_half[key] = '1/2'
-                        if mode == 'dt':
-                            new_variants.extend([variant_1, variant_half])
-                        else:
-                            new_variants.extend([variant_1])
+                        new_variants.extend([variant_1])
                     new_dict_options = new_variants
-                elif d[key] == '1/2':
-                    # If value is already '1/2', keep it unchanged
-                    continue
             
             dict_variants.extend(new_dict_options)
     
@@ -121,20 +108,20 @@ def get_variants(value, herbrand_universe, mode):
         return replace_string_values(value, herbrand_universe)
 
 def generate_variants_for_dataframe(df, predicate_type, args, vars, herbrand_universe, mode):
-    if df.empty:
-        # Filter predicate_type based on whether its corresponding arg is in vars
-        filtered_predicate_type = [
-            element for element, arg in zip(predicate_type, args) if str(arg) in vars
-        ]
+    # if df.empty:
+    #     # Filter predicate_type based on whether its corresponding arg is in vars
+    #     filtered_predicate_type = [
+    #         element for element, arg in zip(predicate_type, args) if str(arg) in vars
+    #     ]
         
-        c = cartesian_product([
-            herbrand_universe if not isinstance(element, list) else [
-                {r: value} for r in list(itertools.combinations_with_replacement(herbrand_universe, len(element)))
-                for value in ['0', '1/2', '1']
-            ] for element in filtered_predicate_type
-        ])
+    #     c = cartesian_product([
+    #         herbrand_universe if not isinstance(element, list) else [
+    #             {r: value} for r in list(itertools.combinations_with_replacement(herbrand_universe, len(element)))
+    #             for value in ['0', '1/2', '1']
+    #         ] for element in filtered_predicate_type
+    #     ])
 
-        return pd.DataFrame(c, columns=df.columns)
+    #     return pd.DataFrame(c, columns=df.columns)
     
     all_variants = []
     initial_rows = df.to_dict(orient='records')  # Convert the original dataframe to a list of dicts (rows)

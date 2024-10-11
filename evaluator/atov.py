@@ -32,8 +32,10 @@ def constant_predicate_atov(
     is_negated = literal.negated
 
     if predicate.startswith('dt_'):
+        mode = 'dt'
         stored_df = under_approximation[predicate]
     else:
+        mode = 'ndf'
         stored_df = over_approximation[predicate]
     if atom_type == 'o':
         return stored_df if not is_negated else not stored_df
@@ -41,20 +43,20 @@ def constant_predicate_atov(
     if not vars:
         if is_negated:
             for row in stored_df.itertuples(index=False, name=None):
-                sub, valid_sub = match(atom.args, row, under_approximation, over_approximation)
+                sub, valid_sub = match(atom.args, row, under_approximation, over_approximation, mode)
                 if valid_sub:
                     return False
             return True
         else:
             for row in stored_df.itertuples(index=False, name=None):
-                sub, valid_sub = match(atom.args, row, under_approximation, over_approximation)
+                sub, valid_sub = match(atom.args, row, under_approximation, over_approximation, mode)
                 if valid_sub:
                     return True
             return False
 
     matches = []
     for row in stored_df.itertuples(index=False, name=None):
-        sub, valid_sub = match(atom.args, row, under_approximation, over_approximation)
+        sub, valid_sub = match(atom.args, row, under_approximation, over_approximation, mode)
         if not valid_sub:
             continue
         matches.append(sub)
@@ -67,14 +69,15 @@ def constant_predicate_atov(
             mode = 'dt'
         else:
             mode = 'ndf'
-        false_df = get_false_combinations(matched_df,atom_type, atom.args, vars, herbrand_universe, mode)#get_false_combinations(matched_df, herbrand_universe, mode)
+        false_df = get_false_combinations(matched_df,atom_type, atom.args, vars, herbrand_universe, mode)
         return false_df
 
 def match(
         a: tuple, 
         b:tuple, 
         under_approximation: dict, 
-        over_approximation: dict
+        over_approximation: dict,
+        mode: str
 ):
     if len(a) != len(b):
         return {}, False
@@ -85,19 +88,25 @@ def match(
         elif ai.arg_type == 'predicate_const':
             dt_tuples = set(under_approximation[f"dt_{ai.value}"].apply(tuple, axis=1))
             ndf_tuples = set(over_approximation[f"ndf_{ai.value}"].apply(tuple, axis=1))
-            def check_keys(dt_tuples, ndf_tuples, bi):
-                for key, val in bi.items():
-                    if val == '1' and key not in dt_tuples:
-                        return False
-                    if val == '1/2':
-                        if not (key in ndf_tuples and key not in dt_tuples):
+            
+            def check_keys(dt_tuples, ndf_tuples, bi, mode):
+                if mode == 'dt':
+                    for key, val in bi.items():
+                        if val ==  '1' and key not in dt_tuples:
                             return False
-                    if val == '0' :
-                        if key in ndf_tuples:
+                        if val == '0' and key in ndf_tuples:
                             return False      
-                return True
+                    return True
+                elif mode == 'ndf':
+                    for key, val in bi.items():
+                        if val == '1' and key not in ndf_tuples :
+                            return False
+                        if val == '0':
+                            if not ((key not in ndf_tuples) or (key in ndf_tuples and key not in dt_tuples)):
+                                return False      
+                    return True
 
-            check = check_keys(dt_tuples, ndf_tuples, bi)
+            check = check_keys(dt_tuples, ndf_tuples, bi, mode)
             if not check:
                 return {}, False
                     
@@ -144,14 +153,14 @@ def variable_predicate_atov(
                 df = pd.DataFrame(expanded_data_flat, columns=list(df.columns) + [predicate])
         else:
             if df.empty:
+
                 data = [
                     { tuple(args): '0'},
-                    { tuple(args): '1/2'},
                 ]
                 df = pd.DataFrame( {predicate:data})
 
             else:
-                expanded_data = df.apply(lambda row: expand_row(row, ['0', '1/2']), axis=1).tolist()
+                expanded_data = df.apply(lambda row: expand_row(row, ['0']), axis=1).tolist()
                 expanded_data_flat = [item for sublist in expanded_data for item in sublist]
 
                 df = pd.DataFrame(expanded_data_flat, columns=list(df.columns) + [predicate])
@@ -160,13 +169,14 @@ def variable_predicate_atov(
         predicate = predicate.split("_")[-1]
         if not is_negated:
             if df.empty:
+
                 data = [
                     { tuple(args): '1'},
-                    { tuple(args): '1/2'}
                 ]
                 df = pd.DataFrame( {predicate:data})
             else:
-                expanded_data = df.apply(lambda row: expand_row(row, ['1','1/2']), axis=1).tolist()
+
+                expanded_data = df.apply(lambda row: expand_row(row, ['1']), axis=1).tolist()
                 expanded_data_flat = [item for sublist in expanded_data for item in sublist]
 
                 df = pd.DataFrame(expanded_data_flat, columns=list(df.columns) + [predicate])

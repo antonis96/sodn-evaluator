@@ -64,24 +64,29 @@ def evaluate_tp(
 
 def evaluate_alternating_fp(
         dt_program: Program, 
-        ndf_program: Program, 
+        ndf_program: Program,
+        initial_program: Program, 
         types: list, 
         current_under_approximation: dict, 
         current_over_approximation: dict, 
         herbrand_universe: set
-) -> dict[str, pd.DataFrame]:
+) -> dict[str, pd.DataFrame]:    
+    
+    new_under_approximation = evaluate_tp(initial_program, types, current_under_approximation, current_over_approximation, herbrand_universe, mode='dt')
+    current_under_approximation = copy.deepcopy(new_under_approximation)
 
+    new_over_approximation = evaluate_tp(ndf_program, types, current_under_approximation, current_over_approximation, herbrand_universe, mode='ndf')
+    current_over_approximation = copy.deepcopy(new_over_approximation)
     stable = False
 
     while not stable:
         stable = True
         previous_under_approximation = copy.deepcopy(current_under_approximation)
-        previous_over_approximation = copy.deepcopy(current_over_approximation)
 
         new_under_approximation = evaluate_tp(dt_program, types, current_under_approximation, current_over_approximation, herbrand_universe, mode='dt')
-        new_over_approximation = evaluate_tp(ndf_program, types, current_under_approximation, current_over_approximation, herbrand_universe, mode='ndf')
-
         current_under_approximation = copy.deepcopy(new_under_approximation)
+
+        new_over_approximation = evaluate_tp(ndf_program, types, current_under_approximation, current_over_approximation, herbrand_universe, mode='ndf')
         current_over_approximation = copy.deepcopy(new_over_approximation)
 
         for key in current_under_approximation.keys():
@@ -93,17 +98,6 @@ def evaluate_alternating_fp(
                 if new_under_approximation[key] != previous_under_approximation[key]:
                     stable = False
                     break
-
-        if stable:
-            for key in current_over_approximation.keys():
-                if isinstance(new_over_approximation[key], pd.DataFrame):
-                    if len(new_over_approximation[key]) != len(previous_over_approximation[key]):
-                        stable = False
-                        break
-                else:
-                    if new_over_approximation[key] != previous_over_approximation[key]:
-                        stable = False
-                        break
 
 
     return current_under_approximation, current_over_approximation

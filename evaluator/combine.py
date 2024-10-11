@@ -55,10 +55,6 @@ def combine_literal_evaluations(
                 if k in merged:
                     if (merged[k] == '1' and v == '0') or (merged[k] == '0' and v == '1'):
                         return None  # Conflict, drop this row
-                    if (merged[k] == '1' and v == '1/2') or (merged[k] == '1/2' and v == '1'):
-                        merged[k] = '1/2'
-                    elif (merged[k] == '0' and v == '1/2') or (merged[k] == '1/2' and v == '0'):
-                        merged[k] = '1/2'
                     else:
                         merged[k] = v
                 else:
