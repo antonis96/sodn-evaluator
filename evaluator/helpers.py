@@ -65,79 +65,57 @@ def group_rules_by_head(rules: List[str]) -> dict[str, List[str]]:
 
 
 
-# Function to get all possible combinations of replacing keys in a dictionary
-def replace_dict_values(d, mode):
-    keys = list(d.keys())
+def replace_dict_values(d):
     dict_variants = []
-    # Loop through each possible combination of key replacements (1 key, 2 keys, ..., n keys)
-    for r in range(1, len(keys) + 1):
-        for key_subset in itertools.combinations(keys, r):
-            # Generate different versions of new_dict for each key
-            new_dict_options = [d.copy()]
+    for r in range(1, len(d) + 1):
+        for key_subset in itertools.combinations(d, r):
+            variant_queue = [d.copy()]
             for key in key_subset:
-                if d[key] == '1':
-                    # Create new variants for '0'
-                    new_variants = []
-                    for variant in new_dict_options:
-                        variant_0 = variant.copy()
-                        variant_0[key] = '0'
-                        new_variants.extend([variant_0])
-                    new_dict_options = new_variants
-                elif d[key] == '0':
-                    # Create new variants for '1'
-                    new_variants = []
-                    for variant in new_dict_options:
-                        variant_1 = variant.copy()
-                        variant_1[key] = '1'
-                        new_variants.extend([variant_1])
-                    new_dict_options = new_variants
-            
-            dict_variants.extend(new_dict_options)
-    
+                variant_queue = [
+                    {**variant, key: '0' if variant[key] == '1' else '1'}
+                    for variant in variant_queue
+                ]
+            dict_variants.extend(variant_queue)
     return dict_variants
 
-# Function to get all possible string replacements
-def replace_string_values(value, possible_values):
-    return [v for v in possible_values if v != value]
 
-# Function to determine how to generate variants based on the type of the value
-def get_variants(value, herbrand_universe, mode):
-    if isinstance(value, dict):
-        return replace_dict_values(value, mode)
-    elif isinstance(value, str):
-        return replace_string_values(value, herbrand_universe)
+def create_variations(row, binary_strings, herbrand_universe):
+    original_dict = row.to_dict()
+    keys = list(original_dict.keys())
+    variations_set = set()
 
-def generate_variants_for_dataframe(df, predicate_type, args, vars, herbrand_universe, mode):
-    # if df.empty:
-    #     # Filter predicate_type based on whether its corresponding arg is in vars
-    #     filtered_predicate_type = [
-    #         element for element, arg in zip(predicate_type, args) if str(arg) in vars
-    #     ]
-        
-    #     c = cartesian_product([
-    #         herbrand_universe if not isinstance(element, list) else [
-    #             {r: value} for r in list(itertools.combinations_with_replacement(herbrand_universe, len(element)))
-    #             for value in ['0', '1/2', '1']
-    #         ] for element in filtered_predicate_type
-    #     ])
+    for binary_string in binary_strings:
+        current_variations = []
+        for bit, key in zip(binary_string, keys):
+            value = original_dict[key]
+            if bit == 1:
+                if isinstance(value, dict):
+                    # Get all possible variations for the dictionary
+                    possible_values = replace_dict_values(value)
+                    # Convert each dictionary to a tuple for hashability
+                    possible_values = [tuple(sorted(v.items())) for v in possible_values]
+                else:
+                    possible_values = [val for val in herbrand_universe if val != value]
+                current_variations.append(possible_values)
+            else:
+                if isinstance(value, dict):
+                    current_variations.append([tuple(sorted(value.items()))])
+                else:
+                    current_variations.append([value])
 
-    #     return pd.DataFrame(c, columns=df.columns)
-    
-    all_variants = []
-    initial_rows = df.to_dict(orient='records')  # Convert the original dataframe to a list of dicts (rows)
-    
-    for _, row in df.iterrows():
-        column_variants = []
-        
-        # Generate variants for each column value
-        for col in df.columns:
-            variants = get_variants(row[col], herbrand_universe, mode)
-            column_variants.append(variants)
-        
-        # Create all combinations of the variants across columns
-        for variant_combination in itertools.product(*column_variants):
-            variant_row = {col: variant_combination[i] for i, col in enumerate(df.columns)}
-            if variant_row not in initial_rows:
-            # Only add if the new row is not in the original dataframe
-                all_variants.append(variant_row)
-    return pd.DataFrame(all_variants)
+        # Add all combinations as tuples to the set for uniqueness
+        variations_set.update(itertools.product(*current_variations))
+
+    # Convert the set of variations back to a DataFrame
+    variations_list = []
+    for variation in variations_set:
+        variation_dict = {}
+        for key, val in zip(keys, variation):
+            if isinstance(val, tuple):
+                # Convert tuples back to dictionaries
+                variation_dict[key] = dict(val)
+            else:
+                variation_dict[key] = val
+        variations_list.append(variation_dict)
+
+    return pd.DataFrame(variations_list)

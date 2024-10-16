@@ -3,7 +3,7 @@ import itertools
 import pandas as pd
 from components import Literal
 from .helpers import *
-
+from .combine import combine_literal_evaluations
 
 def atov(
         literal: Literal, 
@@ -65,11 +65,7 @@ def constant_predicate_atov(
     if not is_negated:
         return matched_df
     else:
-        if predicate.startswith('dt_'):
-            mode = 'dt'
-        else:
-            mode = 'ndf'
-        false_df = get_false_combinations(matched_df,atom_type, atom.args, vars, herbrand_universe, mode)
+        false_df = get_false_combinations(matched_df,herbrand_universe)
         return false_df
 
 def match(
@@ -117,8 +113,16 @@ def match(
                 return {}, False
     return sub, True
 
-def get_false_combinations(df, predicate_type, args, vars, herbrand_universe, mode):
-    return generate_variants_for_dataframe(df, predicate_type, args, vars, herbrand_universe, mode)
+def get_false_combinations(df,herbrand_universe):
+    n = len(df.columns)
+    binary_strings = list(itertools.product([0, 1], repeat=n))
+    binary_strings = [bs for bs in binary_strings if any(bs)]
+
+    row_dataframes = [create_variations(row, binary_strings, herbrand_universe) for _, row in df.iterrows()]
+
+    result_df = combine_literal_evaluations(row_dataframes)
+    return result_df
+
 
 def variable_predicate_atov(
     literal: Literal, 
